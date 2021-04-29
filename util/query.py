@@ -34,6 +34,8 @@ def get_course_classes(query):
     classes = rc_main.fetchall()
     cmpnts = {}
     for c in classes:
+        if c[20] != 'O': # Enroll status must be open
+            continue
         course_cmpnt = c[2]
         instructor = get_instructor_name(c[-1])
         rc_main.execute("SELECT * FROM uOfAClassTime WHERE class=?", (c[1], ))
@@ -41,13 +43,13 @@ def get_course_classes(query):
         if not cmpnts.get(course_cmpnt):
             cmpnts[course_cmpnt] = []
         if not ct: # No classtime: asynchronous class, add the class anyway
-            cmpnts[course_cmpnt].append([c[2], c[3], c[5], instructor, 2147483647, -1, '', None])
+            cmpnts[course_cmpnt].append([c[2], c[3], c[5], instructor, 2147483647, -1, '', None, query])
             continue
         t_start = get_numerical_time(ct[2])
         t_end = get_numerical_time(ct[3])
         # [Component, Section, Location, Instructor, Start_t, End_t, Days, Room]
         cmpnts[course_cmpnt].append([c[2], c[3], c[5], instructor, t_start, t_end,\
-                                    ct[4], ct[5]])
+                                    ct[4], ct[5], query])
     return cmpnts
 
 '''

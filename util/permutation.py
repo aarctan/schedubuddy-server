@@ -30,14 +30,13 @@ def permute_classes(str_courses):
             valid_schedules.append(sched)
     return valid_schedules
 
-#schedules = permute_classes(["CHEM 101", "STAT 151", "PSYCO 258", "PSYCO 223", "PSYCO 275"])
-schedules = permute_classes(["CMPUT 397", "CMPUT 355", "PSYCO 258", "PSYCO 223", "PSYCO 275"])
-
+#schedules = permute_classes(["CHEM 101", "STAT 151", "MATH 134", "PSYCO 223", "PSYCO 275"])
+#schedules = permute_classes(["CMPUT 397", "CMPUT 355", "PSYCO 258", "PSYCO 223", "PSYCO 275"])
+'''
 for schedule in schedules:
     for course in schedule:
         print(course)
     print()
 print(len(schedules))
 
-
-
+'''
