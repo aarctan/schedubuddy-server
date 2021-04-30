@@ -53,9 +53,18 @@ def get_course_classes(query):
                                     ct[4], ct[5], query, c[1]])
     return cmpnts
 
-'''
-for cmpnt in cmpnts:
-        print(cmpnt)
-        for entry in cmpnts[cmpnt]:
-            print(entry)
-'''            
+times = {}
+rc_main.execute("SELECT * FROM uOfAClasstime")
+f = rc_main.fetchall()
+for c in f:
+    start_t = get_numerical_time(c[2])
+    end_t = get_numerical_time(c[3])
+    diff = end_t-start_t
+    if not diff in times.keys():
+        times[diff] = 1
+    else:
+        times[diff] += 1
+for t in times.keys():
+    pass#    print(t, times[t])
+#print(times)
+

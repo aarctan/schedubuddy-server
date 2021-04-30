@@ -13,6 +13,6 @@ manual_sched1 = (( ['LEC', 'A1', 'REMOTE', 'Melis Gedik', 480+60*mwf_offset, 530
 ['LAB', 'W6', 'REMOTE', 'Yoram Apelblat', 480+90*tf_offset, 650+90*tf_offset, 'T', None, 'CHEM 102', '86592']),)
 
 
-draw_schedule(b_s1)
+draw_schedule(manual_sched1)
 
 

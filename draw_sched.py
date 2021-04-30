@@ -25,7 +25,7 @@ length_lookup = {
     170:    154,
     180:    101,
 }
-font = ImageFont.truetype("../fonts/tahoma.ttf", 11)
+font = ImageFont.truetype("fonts/tahoma.ttf", 11)
 
 def get_draw_text(course_class):
     course_name = course_class[8]
@@ -47,11 +47,11 @@ def get_draw_text(course_class):
         instructor_text_size = font.getsize(instructor_text)
     location = course_class[2]
     text = course_name + '\n' + class_component + ' ' + class_section +\
-        ' (' + class_id + ')\n' + location
+        ' (' + class_id + ')\n' + instructor_text
     return text.upper()
 
 def draw_schedule(sched):
-    with Image.open("../boilerplate.png") as image:
+    with Image.open("boilerplate.png") as image:
         draw = ImageDraw.Draw(image)
         colors = 0
         max_end_t = -1
@@ -82,13 +82,13 @@ def draw_schedule(sched):
                         r_y0 += 1
 
                     r_y1 = r_y0 + length_lookup[end_t - start_t]
+                    draw.rectangle([(r_x0-1, r_y0-1), (r_x1+1, r_y1+1)], fill=(0,0,0))
                     draw.rectangle([(r_x0, r_y0), (r_x1, r_y1)], fill = color)
                     draw.text((r_x0+2, r_y0+2), get_draw_text(course_class), (0,0,0), font=font)
+                    
             colors += 1
         w,h = image.size
         hours_cropped = 17-(ceil(max_end_t/60)-8 + HOUR_PADDING)
         crop_line = h - (hours_cropped*51 + hours_cropped)
-        print(hours_cropped)
         draw.line((0,crop_line-1, w, crop_line-1), fill=(0, 0, 0), width=1)
         image.crop((0, 0, w, crop_line)).save("schedule.png")
-#        image.save("schedule.png")
