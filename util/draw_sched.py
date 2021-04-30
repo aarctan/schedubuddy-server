@@ -29,8 +29,16 @@ def get_draw_text(course_class):
     class_component = course_class[0]
     class_section = course_class[1]
     class_id = course_class[9]
+    instructor = course_class[3]
+    instructor_full = instructor.split()
+    instructor_initials = []
+    for i in range(len(instructor_full)-1):
+        instructor_initials.append(instructor_full[i][0].upper() + '. ')
+    instructor_text = ''.join(instructor_initials) + instructor_full[-1]
+    if len(instructor_text) > 14:
+        instructor_text = instructor_text[:14] + '...'
     text = course_name + '\n' + class_component + ' ' + class_section +\
-        ' (' + class_id + ')'
+        ' (' + class_id + ')\n' + instructor_text
     return text
 
 def draw_schedule(sched):
