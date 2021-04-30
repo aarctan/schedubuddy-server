@@ -30,13 +30,18 @@ def get_draw_text(course_class):
     class_section = course_class[1]
     class_id = course_class[9]
     instructor = course_class[3]
-    instructor_full = instructor.split()
-    instructor_initials = []
-    for i in range(len(instructor_full)-1):
-        instructor_initials.append(instructor_full[i][0].upper() + '. ')
-    instructor_text = ''.join(instructor_initials) + instructor_full[-1]
-    if len(instructor_text) > 14:
-        instructor_text = instructor_text[:14] + '...'
+    instructor_text = ''
+    if instructor:
+        instructor_full = instructor.split()
+        instructor_initials = []
+        for i in range(len(instructor_full)-1):
+            instructor_initials.append(instructor_full[i][0].upper() + '. ')
+        instructor_text = ''.join(instructor_initials) + instructor_full[-1]
+        if font.getsize(instructor_text)[0] > box_width-3: # pop until fit with elipses
+            while font.getsize(instructor_text + '...')[0] > box_width-3:
+                instructor_text = instructor_text[:-1]
+            instructor_text += '...'
+        instructor_text_size = font.getsize(instructor_text)
     text = course_name + '\n' + class_component + ' ' + class_section +\
         ' (' + class_id + ')\n' + instructor_text
     return text
