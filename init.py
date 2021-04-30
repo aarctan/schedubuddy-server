@@ -38,14 +38,29 @@ async def on_message(message):
 
 @bot.command(pass_context=True)
 async def c(ctx, *args):
-    #await ctx.send('Working!', file=discord.File('schedule.png'))
     args = list(args)
     for i in range(len(args)):
         args[i] = args[i].upper()
     courses_queried = [x+' '+y for x,y in zip(args[0::2], args[1::2])]
     schedules = permute_classes(courses_queried)
     draw_schedule(choice(schedules))
-    await ctx.send('', file=discord.File('schedule.png'))
-    #await ctx.send('`{}` arguments: `{}`'.format(len(args), ', '.join(args)))
+    msg_desc = "Listing **1** of **" + str(len(schedules)) +\
+         "** generated schedules for the specified course selection:"
+    embed = discord.Embed(description=msg_desc, color=0xb3edbd)
+    embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar_url)
+    file = discord.File("schedule.png", filename="image.png")
+    embed.set_image(url="attachment://image.png")
+    post = await ctx.send(file=file, embed=embed)
+    #left_emoji = ctx.client.get_emoji(⬅️)
+    await post.add_reaction('⬅️')
+    await post.add_reaction('➡️')
+
+ 
+
+
+@bot.command(pass_context=True)
+async def embed(ctx):
+    embed=discord.Embed(description="This is an embed that will show how to build an embed and the different components", color=discord.Color.blue())
+    await ctx.send(embed=embed)
 
 bot.run(TOKEN)
