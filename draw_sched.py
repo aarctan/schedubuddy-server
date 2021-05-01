@@ -7,6 +7,9 @@ GREEN = (153,255,152)
 BLUE = (153,204,254)
 PURPLE = (204,153,255)
 PINK = (255,153,204)
+TURQUOISE = (153,255,204)
+ORANGE = (255,204,152)
+DARKBLUE = (152,152,255)
 HOUR_PADDING = 0
 
 left_margin_offset = 148
@@ -14,7 +17,7 @@ top_margin_offset = 90
 box_width = 200
 vertical_length_50 = 101
 
-color_scheme = (RED, YELLOW, GREEN, BLUE, PURPLE, PINK)
+color_scheme = (RED, YELLOW, GREEN, BLUE, PURPLE, PINK, TURQUOISE, ORANGE, DARKBLUE)
 day_lookup = {'U': 0, 'M':1, 'T':2, 'W':3, 'R':4, 'F':5, 'S':6}
 length_lookup = {
     0:      0,
@@ -60,7 +63,7 @@ def draw_schedule(sched):
         max_y = -2147483648
         class_on_weekend = False
         for course in sched:
-            color = color_scheme[colors%6]
+            color = color_scheme[colors%len(color_scheme)]
             for course_class in course:
                 start_t, end_t = course_class[4], course_class[5]
                 max_y = max(max_y, end_t)
