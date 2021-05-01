@@ -1,5 +1,5 @@
 from PIL import Image, ImageDraw, ImageFont
-from math import ceil
+from math import floor, ceil
 
 RED = (255,153,153)
 YELLOW = (254,255,153)
@@ -7,7 +7,7 @@ GREEN = (153,255,152)
 BLUE = (153,204,254)
 PURPLE = (204,153,255)
 PINK = (255,153,204)
-HOUR_PADDING = 2
+HOUR_PADDING = 0
 
 left_margin_offset = 148
 top_margin_offset = 90
@@ -25,7 +25,7 @@ length_lookup = {
     170:    309,
     180:    309,
 }
-font = ImageFont.truetype("fonts/tahoma.ttf", 22)
+font = ImageFont.truetype("fonts/tahoma.ttf", 19)
 
 def get_draw_text(course_class):
     course_name = course_class[8]
@@ -47,7 +47,7 @@ def get_draw_text(course_class):
         instructor_text_size = font.getsize(instructor_text)
     location = course_class[2]
     text = course_name + '\n' + class_component + ' ' + class_section +\
-        ' (' + class_id + ')\n' + instructor_text
+        ' (' + class_id + ')\n' + location + '\n' + instructor_text
     return text.upper()
 
 def draw_schedule(sched):
@@ -80,26 +80,22 @@ def draw_schedule(sched):
                         r_y0 += length_lookup[minutes]
                         incr_90 = start_t // 90
                         r_y0 += incr_90*length_lookup[80] + incr_90*2
-                    '''
-                    if day in 'MWF':
-                        bars_past = max(0, hours*3-1)
-                    elif day in 'TR':
-                        tr_offset = (start_t)//90
-                        bars_past = max(0, tr_offset*2+tr_offset-1)
-                    r_y0 = top_margin_offset + hours*vertical_length_50 + bars_past
-                    r_y0 += length_lookup[minutes]
-                    if hours > 0: # Manual y offset adjust 
-                        r_y0 += 1
-                    '''
 
                     r_y1 = r_y0 + length_lookup[end_t - start_t]
                     draw.rectangle([(r_x0-2, r_y0-2), (r_x1+2, r_y1+2)], fill=(0,0,0))
                     draw.rectangle([(r_x0, r_y0), (r_x1, r_y1)], fill = color)
-                    draw.text((r_x0+2, r_y0+2), get_draw_text(course_class), (0,0,0), font=font)
+                    draw.text((r_x0+3, r_y0+2), get_draw_text(course_class), (0,0,0), font=font)
                     
             colors += 1
-        w,h = image.size
-        hours_cropped = 24-(ceil(max_y/60) + HOUR_PADDING)
-        crop_line = h - (hours_cropped*vertical_length_50 + hours_cropped*3)
-        draw.line((0,crop_line-2, w, crop_line-2), fill=(0, 0, 0), width=2)
-        image.crop((0, 0, w, crop_line)).save("schedule.png")
+        boilerplate_width, boilerplate_height = image.size
+        top_hours = min(8, floor(min_y/60))
+        y_region_top = top_margin_offset + top_hours * vertical_length_50 + top_hours*3
+        bottom_hours = (ceil(max_y/60) + HOUR_PADDING)
+        y_region_bottom = top_margin_offset + bottom_hours * vertical_length_50 + bottom_hours*3
+        y_region = image.crop((0, y_region_top, boilerplate_width, y_region_bottom))
+        y_region_length = y_region_bottom-y_region_top
+
+        image.paste(y_region, (0, top_margin_offset, boilerplate_width, top_margin_offset+y_region_length))
+        y_crop_line = top_margin_offset + y_region_length
+        draw.line((0,y_crop_line-2, boilerplate_width, y_crop_line-2), fill=(0, 0, 0), width=2)
+        image.crop((0, 0, boilerplate_width, y_crop_line)).save("schedule.png")
