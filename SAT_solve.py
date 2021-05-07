@@ -1,5 +1,6 @@
 import sqlite3
 import pycosat
+from pysat.solvers import Solver, Minisat22
 
 DATABASE = "Fall_20"
 
@@ -64,6 +65,19 @@ def get_classes(courses):
         for component in course_classes.keys():
             classes_collection.append(course_classes[component])
 
+    # Prune classes in the same collection that have the same times
+    for collection in classes_collection:
+        collection_times = set()
+        prune_indices = []
+        for i, c in enumerate(collection):
+            class_times = (c[3], c[4], c[5])
+            if class_times in collection_times:
+                prune_indices.append(i)
+            collection_times.add(class_times)
+        prune_indices.reverse()
+        for i in prune_indices:
+            collection.pop(i)
+
     class_id = 1
     sat_class2id = {}
     sat_id2class = {}
@@ -102,14 +116,11 @@ def get_classes(courses):
                     if conflict(class_a, class_b):
                         clauses.append([-1 * sat_class2id[class_a[-1]],\
                             -1 * sat_class2id[class_b[-1]]])
-
-    print("\nSOLUTIONS")
+    
     sols = []
     for sol in pycosat.itersolve(clauses):
         new_sol = [i for i in sol if i > 0]
-        if len(new_sol) == len(classes_collection):
-            sols.append(new_sol)
-            #print(new_sol)
+        sols.append(new_sol)
     print(len(sols))
 
     sol = sols[0]
@@ -119,4 +130,4 @@ def get_classes(courses):
         course_class = rc_main.fetchone()
         #print(course_class[-6])
 
-get_classes(["CHEM 101"])
+get_classes(["CHEM 101", "CHEM 261", "BIOL 107"])
