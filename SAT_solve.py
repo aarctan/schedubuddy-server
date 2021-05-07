@@ -45,16 +45,10 @@ def get_course_classes(query):
 day_lookup = {'M':0, 'T':1, 'W':2, 'R':3, 'F':4, 'S':5, 'U':6}
 
 def conflict(a,b):
-    rc_main.execute("SELECT * FROM uOfAClassTime WHERE class=?", (a,))
-    a = rc_main.fetchone()
-    rc_main.execute("SELECT * FROM uOfAClassTime WHERE class=?", (b,))
-    b = rc_main.fetchone()
-    if a == None or b == None:
-        return False
     ranges = []
     for course_class in (a, b):
-        start_t, end_t = course_class[6], course_class[7]
-        for day in course_class[4]:
+        start_t, end_t = course_class[3], course_class[4]
+        for day in course_class[5]:
             day_mult = day_lookup[day]
             ranges.append((start_t + 2400*day_mult, end_t + 2400*day_mult))
     ranges.sort(key=lambda t: t[0])
@@ -69,7 +63,6 @@ def get_classes(courses):
         course_classes = get_course_classes(course)
         for component in course_classes.keys():
             classes_collection.append(course_classes[component])
-            #print(course_classes[component], end='\n\n')
 
     class_id = 1
     sat_class2id = {}
@@ -92,6 +85,12 @@ def get_classes(courses):
                 clauses.append([-1 * sat_class2id[collection[i][-1]],\
                                 -1 * sat_class2id[collection[j][-1]]])
 
+    for collection in classes_collection:
+        collection_clause = []
+        for course_class in collection:
+            collection_clause.append(sat_class2id[course_class[-1]])
+        clauses.append(collection_clause)
+
     for i in range(len(classes_collection)):
         collection_i = classes_collection[i]
         for j in range(i+1, len(classes_collection)):
@@ -100,7 +99,7 @@ def get_classes(courses):
                 for l in range(len(classes_collection[j])):
                     class_a = collection_i[k]
                     class_b = collection_j[l]
-                    if conflict(class_a[-1], class_b[-1]):
+                    if conflict(class_a, class_b):
                         clauses.append([-1 * sat_class2id[class_a[-1]],\
                             -1 * sat_class2id[class_b[-1]]])
 
@@ -110,13 +109,14 @@ def get_classes(courses):
         new_sol = [i for i in sol if i > 0]
         if len(new_sol) == len(classes_collection):
             sols.append(new_sol)
-            print(new_sol)
+            #print(new_sol)
+    print(len(sols))
 
     sol = sols[0]
     for class_sat in sol:
         class_id = sat_id2class[class_sat]
         rc_main.execute("SELECT * FROM uOfAClass WHERE class=?", (class_id,))
         course_class = rc_main.fetchone()
-        print(course_class[-6])
+        #print(course_class[-6])
 
-get_classes(["CMPUT 355", "CMPUT 397", "PSYCO 223", "PSYCO 258", "PSYCO 275"])
+get_classes(["CHEM 101"])
