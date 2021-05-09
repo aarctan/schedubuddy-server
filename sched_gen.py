@@ -2,9 +2,10 @@ import query
 
 import pycosat
 from itertools import product
-from random import choice
+from random import choice, shuffle
 
-EXHAUST_CARDINALITY_THRESHOLD = 200000
+EXHAUST_CARDINALITY_THRESHOLD = 2000000
+ASSUMED_COMMUTE_TIME = 40
 CONFLICTS = query.get_conflicts_set()
 
 # param course_list is a list of strings of form "SUBJ CATALOG" e.g. "CHEM 101".
@@ -107,6 +108,43 @@ def _validate_schedules(schedules):
             valid_schedules.append(schedule)
     return valid_schedules
 
+def _closeness_evaluate(schedule):
+    clean_sched = []
+    for course_class in schedule:
+        if course_class[4] != 2147483647:
+            clean_sched.append(course_class)
+    schedule = clean_sched
+    day_times_map = {}
+    for course_class in schedule:
+        days = course_class[6]
+        start_t, end_t = course_class[4], course_class[5]
+        for day in days:
+            if not day in day_times_map:
+                day_times_map[day] = [(start_t, end_t)]
+            else:
+                day_times_map[day].append((start_t, end_t))
+    time_not_in_class = 0
+    for times in day_times_map.values():
+        if len(times) == 1:
+            time_not_in_class += ASSUMED_COMMUTE_TIME * 2
+            continue
+        times.sort()
+        day_time_spent = times[-1][1] - times[0][0]
+        for time_tuple in times:
+            day_time_spent -= (time_tuple[1] - time_tuple[0])
+        time_not_in_class += day_time_spent
+    return time_not_in_class
+
+def _sort_by_closeness(schedules):
+    shuffle(schedules)
+    schedule_timewasted = []
+    for schedule in schedules:
+        time_not_in_class = _closeness_evaluate(schedule)
+        schedule_timewasted.append((schedule, time_not_in_class))
+    schedule_timewasted.sort(key=lambda t: t[1])
+    sorted_schedules = [s[0] for s in schedule_timewasted]
+    return sorted_schedules
+
 # Generate valid schedules for a string list of courses. First construct a
 # a list of components, where a "component" is a set of classes where each
 # class contains information such as class time, id, location, etc, and share
@@ -135,8 +173,7 @@ def generate_schedules(course_list):
                 sample_sched.append(choice(component))
             sampled_schedules.append(sample_sched)
         valid_schedules = _validate_schedules(sampled_schedules)
-    return valid_schedules
+    return _sort_by_closeness(valid_schedules)
 
-x = generate_schedules(["BIOL 107", "CHEM 101", "CHEM 261", "ENGL 102", "BIOL 108", "STAT 151"])
-print("Valid schedules found: " + str(len(x)))
+#schedules = generate_schedules(["CMPUT 201", "CMPUT 272", "MATH 216", "MATH 217"])
 
