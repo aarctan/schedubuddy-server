@@ -26,6 +26,7 @@ length_lookup = {
     80:     154,
     90:     154,
     110:    101,
+    145:    120,
     170:    309,
     180:    309,
     240:    414,
@@ -40,6 +41,7 @@ def get_draw_text(course_class):
     class_id = course_class[9]
     instructor = course_class[3]
     instructor_text = ''
+    print(course_class)
     if instructor:
         instructor_full = instructor.split()
         instructor_initials = []
@@ -51,7 +53,8 @@ def get_draw_text(course_class):
                 instructor_text = instructor_text[:-1]
             instructor_text += '...'
         instructor_text_size = font.getsize(instructor_text)
-    location = course_class[2]
+
+    location = course_class[7] if course_class[7] else course_class[2]
     text = course_name + '\n' + class_component + ' ' + class_section +\
         ' (' + class_id + ')\n' + location + '\n' + instructor_text
     return text.upper()
@@ -63,8 +66,14 @@ def draw_schedule(sched):
     min_y = 2147483647
     max_y = -2147483648
     class_on_weekend = False
+    course_itr = 0
+    curr_course = None
     for course_class in sched:
-        color = color_scheme[colors%len(color_scheme)]
+        course_id = course_class[8]
+        if course_id != curr_course:
+            color = color_scheme[course_itr%len(color_scheme)]
+            curr_course = course_id
+            course_itr += 1
         start_t, end_t = course_class[4], course_class[5]
         max_y = max(max_y, end_t)
         min_y = min(min_y, start_t)

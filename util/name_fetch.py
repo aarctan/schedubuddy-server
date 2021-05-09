@@ -1,4 +1,4 @@
-database = "Fall_20"
+database = "Fall_21"
 
 
 from bs4 import BeautifulSoup
@@ -9,7 +9,7 @@ def searchCCIDforName(ccid):
     url="https://apps.ualberta.ca/directory/person/"+ccid
     r = requests.get(url)
     data = r.text
-    soup = BeautifulSoup(data, "html5lib")
+    soup = BeautifulSoup(data, "lxml")
     name = None
     try:
         name = " ".join(soup.h2.get_text().split())

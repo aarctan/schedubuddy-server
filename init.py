@@ -1,7 +1,8 @@
 import discord
 from discord.ext import commands
 from discord.ext.commands import bot
-from permutation import permute_classes
+
+from sched_gen import generate_schedules
 from draw_sched import draw_schedule
 from random import choice
 
@@ -42,7 +43,7 @@ async def c(ctx, *args):
     for i in range(len(args)):
         args[i] = args[i].upper()
     courses_queried = [x+' '+y for x,y in zip(args[0::2], args[1::2])]
-    schedules = permute_classes(courses_queried)
+    schedules = generate_schedules(courses_queried)
     draw_schedule(choice(schedules))
     msg_desc = "Listing **1** of **" + str(len(schedules)) +\
          "** generated schedules for the specified course selection:"
