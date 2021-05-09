@@ -79,12 +79,18 @@ def _build_cnf(components):
     cnf = min_sol + single_sel + conflicts
     return cnf
 
+# Given a list of components, returns the size of the cross product. This is
+# useful for knowing the workload prior to computing it, which can be grow
+# more than exponentially fast.
 def _cross_prod_cardinality(components):
     cardinality = 1
     for component in components:
         cardinality *= len(component)
     return cardinality
-        
+
+# Given a schedule that is represented by a list of classes retrived from a
+# database, check if it is valid by looking up the existence of
+# time-conflict-pairs for every pair of classes in the schedule.
 def _valid_schedule(schedule):
     class_ids = class_ids = [c[-1] for c in schedule]
     for i in range(len(class_ids)):
@@ -93,6 +99,7 @@ def _valid_schedule(schedule):
                 return False
     return True
 
+# Given a list of schedules, filter out every schedule with time conflicts. 
 def _validate_schedules(schedules):
     valid_schedules = []
     for schedule in schedules:
@@ -100,6 +107,15 @@ def _validate_schedules(schedules):
             valid_schedules.append(schedule)
     return valid_schedules
 
+# Generate valid schedules for a string list of courses. First construct a
+# a list of components, where a "component" is a set of classes where each
+# class contains information such as class time, id, location, etc, and share
+# a component if they have the same course id and component such as LEC or
+# LAB. Early exit if the SAT solver proves unsatisfiability. If the size of
+# possibly valid schedules is within a computational threshold T, then
+# attempt to validate all schedules. If the size exceeds the threshold,
+# randomly sample from every axis (component) and gather a subset of all
+# possibly valid schedules of size T.
 def generate_schedules(course_list):
     (components, aliases) = _create_components(course_list)
     cnf = _build_cnf(components)
