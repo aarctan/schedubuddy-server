@@ -1,6 +1,6 @@
 import sqlite3
 
-DATABASE = "Fall_20"
+DATABASE = "Fall_21"
 
 readconn_main = sqlite3.connect(DATABASE + ".db")
 readconn_names = sqlite3.connect("instructor_names.db")

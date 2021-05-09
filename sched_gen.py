@@ -1,8 +1,10 @@
 import query
 
 import pycosat
+from itertools import product
+from random import choice
 
-EXHAUST_CARDINALITY_THRESHOLD = 100000
+EXHAUST_CARDINALITY_THRESHOLD = 200000
 CONFLICTS = query.get_conflicts_set()
 
 # param course_list is a list of strings of form "SUBJ CATALOG" e.g. "CHEM 101".
@@ -13,9 +15,9 @@ CONFLICTS = query.get_conflicts_set()
 #   that share identical start times, end times, and days, used to reduce the
 #   search space to only unique "looking" schedules.
 def _create_components(course_list):
-    assert len(course_list) > 0, "Courses input must be non-empty"
+    assert len(course_list) > 0, "Courses input is empty"
     assert len(set(course_list)) == len(course_list),\
-        "Course list must have no duplicates"
+        "Course list has duplicates"
     components = []
     aliases = {}
     for course in course_list:
@@ -82,26 +84,43 @@ def _cross_prod_cardinality(components):
     for component in components:
         cardinality *= len(component)
     return cardinality
+        
+def _valid_schedule(schedule):
+    class_ids = class_ids = [c[-1] for c in schedule]
+    for i in range(len(class_ids)):
+        for j in range(i+1, len(class_ids)):
+            if (class_ids[i], class_ids[j]) in CONFLICTS:
+                return False
+    return True
 
-def _components_satisfiable(cnf):
-    sol = pycosat.solve(cnf)
-    return sol != "UNSAT"
+def _validate_schedules(schedules):
+    valid_schedules = []
+    for schedule in schedules:
+        if _valid_schedule(schedule):
+            valid_schedules.append(schedule)
+    return valid_schedules
 
 def generate_schedules(course_list):
     (components, aliases) = _create_components(course_list)
     cnf = _build_cnf(components)
-    if not _components_satisfiable(cnf):
-        return 0
-    else:
-        return 1
-
+    if pycosat.solve(cnf) == "UNSAT":
+        return []
     cardinality = _cross_prod_cardinality(components)
+    print("Cross product cardinality: " + str(cardinality))
+    valid_schedules = []
     if cardinality <= EXHAUST_CARDINALITY_THRESHOLD:
-        pass
+        schedules = list(product(*components))
+        valid_schedules = _validate_schedules(schedules)
     else:
-        pass
+        sampled_schedules = []
+        for _ in range(EXHAUST_CARDINALITY_THRESHOLD):
+            sample_sched = []
+            for component in components:
+                sample_sched.append(choice(component))
+            sampled_schedules.append(sample_sched)
+        valid_schedules = _validate_schedules(sampled_schedules)
+    return valid_schedules
 
-x = generate_schedules(["CHEM 101", "CHEM 102"])
-print(x)
-
+x = generate_schedules(["BIOL 107", "CHEM 101", "CHEM 261", "ENGL 102", "BIOL 108", "STAT 151"])
+print("Valid schedules found: " + str(len(x)))
 
