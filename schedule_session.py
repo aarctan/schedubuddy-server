@@ -37,9 +37,10 @@ class ScheduleSession:
         return sched_gen.generate_schedules(courses_queried)
 
     def embed_page(self, page_number: int = 0) -> Embed:
-        
-        embed = Embed(description="hi", color=0xb3edbd)
-
+        msg_desc = "Listing **{}** of **{}** generated schedules for the\
+            specified course selection:"\
+            .format(str(page_number+1), str(len(self.schedules)))
+        embed = Embed(description=msg_desc, color=0xb3edbd)
         return embed
 
     async def update_page(self, page_number: int = 0) -> None:
@@ -58,7 +59,6 @@ class ScheduleSession:
         await self.build_pages()
         self._bot.add_listener(self.on_reaction_add)
         await self.update_page()
-        print('henlo')
         self._bot.loop.create_task(self.message.add_reaction(LEFT_EMOJI))
         self._bot.loop.create_task(self.message.add_reaction(RIGHT_EMOJI))
 
@@ -87,7 +87,7 @@ class ScheduleSession:
             await self.update_page(self._current_page-1)
 
     async def do_next(self) -> None:
-        if self._current_page != 0:
+        if self._current_page != (len(self._pages)-1):
             await self.update_page(self._current_page+1)
 
     async def on_reaction_add(self, reaction: Reaction, user: User) -> None:
