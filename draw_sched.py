@@ -2,15 +2,16 @@ from PIL import Image, ImageDraw, ImageFont
 from math import floor, ceil
 
 RED = (255,153,153)
-YELLOW = (254,255,153)
-GREEN = (153,255,152)
-BLUE = (153,204,254)
+YELLOW = (255,255,153)
+GREEN = (153,255,153)
+BLUE = (153,204,255)
 PURPLE = (204,153,255)
 PINK = (255,153,204)
 TURQUOISE = (153,255,204)
-ORANGE = (255,204,152)
-DARKBLUE = (152,152,255)
-HOUR_PADDING = 0
+ORANGE = (255,204,153)
+DARKBLUE = (153,153,255)
+CYAN = (204,255,255)
+HOUR_PADDING = 1
 
 left_margin_offset = 148
 top_margin_offset = 90
@@ -41,7 +42,6 @@ def get_draw_text(course_class):
     class_id = course_class[9]
     instructor = course_class[3]
     instructor_text = ''
-    print(course_class)
     if instructor:
         instructor_full = instructor.split()
         instructor_initials = []
