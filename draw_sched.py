@@ -1,3 +1,5 @@
+from io import BytesIO
+from sched_gen import generate_schedules
 from PIL import Image, ImageDraw, ImageFont
 from math import floor, ceil
 
@@ -18,22 +20,9 @@ top_margin_offset = 90
 box_width = 200
 vertical_length_50 = 101
 
-color_scheme = (RED, YELLOW, GREEN, BLUE, PURPLE, PINK, TURQUOISE, ORANGE, DARKBLUE)
+color_scheme = (RED, YELLOW, GREEN, BLUE, PURPLE, PINK, TURQUOISE, ORANGE, DARKBLUE, CYAN)
 day_lookup = {'U': 0, 'M':1, 'T':2, 'W':3, 'R':4, 'F':5, 'S':6}
-length_lookup = {
-    0:      0,
-    30:     51,
-    50:     vertical_length_50,
-    80:     154,
-    85:     154,
-    90:     154,
-    110:    101,
-    145:    120,
-    170:    309,
-    180:    309,
-    240:    414,
-    420:    725,
-}
+
 font = ImageFont.truetype("fonts/tahoma.ttf", 19)
 
 def get_draw_text(course_class, location=''):
@@ -88,18 +77,12 @@ def draw_schedule(sched):
                 r_x0 = left_margin_offset + day_lookup[day] * box_width + day_lookup[day]*2
                 r_x1 = r_x0 + box_width-1
 
-                r_y0 = top_margin_offset
-                hours = (start_t // 60)
-                minutes = (start_t % 60)
+                assert start_t % 15 == 0, "Start time must be a multiple of 15 minutes"
+                quarters_past = start_t//15
+                quarters_fill = ceil((end_t - start_t) / 15)
+                r_y0 = top_margin_offset + quarters_past*25.25 + (quarters_past/4) * 3
+                r_y1 = r_y0 + quarters_fill*25.25 + (quarters_fill/4 - 1) * 3
 
-                if start_t % 60 == 0:
-                    r_y0 += hours*vertical_length_50 + hours*3
-                elif (start_t % 90-30) == 0:
-                    r_y0 += length_lookup[minutes]
-                    incr_90 = start_t // 90
-                    r_y0 += incr_90*length_lookup[80] + incr_90*2
-            
-                r_y1 = r_y0 + length_lookup[end_t - start_t]
                 draw.rectangle([(r_x0-2, r_y0-2), (r_x1+2, r_y1+2)], fill=(0,0,0))
                 draw.rectangle([(r_x0, r_y0), (r_x1, r_y1)], fill = color)
                 draw.text((r_x0+4, r_y0+2), get_draw_text(course_class, location=location), (0,0,0), font=font)
@@ -125,14 +108,24 @@ def draw_schedule(sched):
         x_region = image.crop((x_region_left, 0, x_region_right, y_crop_line))
         image.paste(x_region, (left_margin_offset, 0, left_margin_offset+x_region_length, y_crop_line))
         image = image.crop((0, 0, left_margin_offset + x_region_length, y_crop_line))
-    
-    image.save("schedule.png")
+    #image.save("schedule.png")
+    return image
 
-
+'''
 from sched_gen import generate_schedules
 (s, a) = generate_schedules(["CMPUT 174", "MATH 117", "MATH 127", "STAT 151", "WRS 101"])
 import time
 for i in range(len(s)-1):
     draw_schedule(s[i])
     time.sleep(1)
+'''
+'''
+s = (['LEC', 'X01', 'MAIN', None, [\
+    (480, 480+80, 'T', 'HC 2-12'),\
+    (480, 480+50, 'M', 'HC 2-12'),\
+    (480, 480+170, 'W', 'HC 2-12'),\
+    (480, 480+110, 'F', 'HC 2-12')], 'JAPAN 101', '51778'],)
 
+print(s)
+draw_schedule(s)
+'''
