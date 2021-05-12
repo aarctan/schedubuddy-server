@@ -36,7 +36,7 @@ length_lookup = {
 }
 font = ImageFont.truetype("fonts/tahoma.ttf", 19)
 
-def get_draw_text(course_class):
+def get_draw_text(course_class, location=''):
     course_name = course_class[5]
     class_component = course_class[0]
     class_section = course_class[1]
@@ -55,8 +55,9 @@ def get_draw_text(course_class):
             instructor_text += '...'
         instructor_text_size = font.getsize(instructor_text)
 
-    #location = course_class[7] if course_class[7] else course_class[2]
-    location = ''
+#    write "ONLINE" if it's an online class
+#    location = course_class[7] if course_class[7] else course_class[2]
+    location = location  if location else ''
     text = course_name + '\n' + class_component + ' ' + class_section +\
         ' (' + class_id + ')\n' + location + '\n' + instructor_text
     return text.upper()
@@ -101,7 +102,7 @@ def draw_schedule(sched):
                 r_y1 = r_y0 + length_lookup[end_t - start_t]
                 draw.rectangle([(r_x0-2, r_y0-2), (r_x1+2, r_y1+2)], fill=(0,0,0))
                 draw.rectangle([(r_x0, r_y0), (r_x1, r_y1)], fill = color)
-                draw.text((r_x0+4, r_y0+2), get_draw_text(course_class), (0,0,0), font=font)
+                draw.text((r_x0+4, r_y0+2), get_draw_text(course_class, location=location), (0,0,0), font=font)
 
     # get the y region
     boilerplate_width, boilerplate_height = image.size
@@ -127,11 +128,11 @@ def draw_schedule(sched):
     
     image.save("schedule.png")
 
-'''
+
 from sched_gen import generate_schedules
 (s, a) = generate_schedules(["CMPUT 174", "MATH 117", "MATH 127", "STAT 151", "WRS 101"])
 import time
 for i in range(len(s)-1):
     draw_schedule(s[i])
     time.sleep(1)
-'''
+
