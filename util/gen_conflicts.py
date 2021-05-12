@@ -15,7 +15,7 @@ def conflict(a,b):
             return True
     return False
 
-sqlconn = sqlite3.connect("Fall_20.db")
+sqlconn = sqlite3.connect("Fall_21.db")
 sqlcursor = sqlconn.cursor()
 
 sqlcursor.execute("DROP TABLE IF EXISTS classTimeConflicts")

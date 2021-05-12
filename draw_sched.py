@@ -25,6 +25,7 @@ length_lookup = {
     30:     51,
     50:     vertical_length_50,
     80:     154,
+    85:     154,
     90:     154,
     110:    101,
     145:    120,
@@ -36,10 +37,10 @@ length_lookup = {
 font = ImageFont.truetype("fonts/tahoma.ttf", 19)
 
 def get_draw_text(course_class):
-    course_name = course_class[8]
+    course_name = course_class[5]
     class_component = course_class[0]
     class_section = course_class[1]
-    class_id = course_class[9]
+    class_id = course_class[6]
     instructor = course_class[3]
     instructor_text = ''
     if instructor:
@@ -54,7 +55,8 @@ def get_draw_text(course_class):
             instructor_text += '...'
         instructor_text_size = font.getsize(instructor_text)
 
-    location = course_class[7] if course_class[7] else course_class[2]
+    #location = course_class[7] if course_class[7] else course_class[2]
+    location = ''
     text = course_name + '\n' + class_component + ' ' + class_section +\
         ' (' + class_id + ')\n' + location + '\n' + instructor_text
     return text.upper()
@@ -62,47 +64,44 @@ def get_draw_text(course_class):
 def draw_schedule(sched):
     image = Image.open("boilerplate_full.png")
     draw = ImageDraw.Draw(image)
-    colors = 0
     min_y = 2147483647
     max_y = -2147483648
     class_on_weekend = False
     course_itr = 0
     curr_course = None
     for course_class in sched:
-        course_id = course_class[8]
+        course_id = course_class[5]
         if course_id != curr_course:
             color = color_scheme[course_itr%len(color_scheme)]
             curr_course = course_id
             course_itr += 1
-        start_t, end_t = course_class[4], course_class[5]
-        max_y = max(max_y, end_t)
-        min_y = min(min_y, start_t)
-        if end_t == -1: # Asynchronous classes
-            continue
-        days = course_class[6]
-        for day in days:
-            if day == 'S' or day == 'U':
-                class_on_weekend = True
-            r_x0 = left_margin_offset + day_lookup[day] * box_width + day_lookup[day]*2
-            r_x1 = r_x0 + box_width-1
+        for classtime in course_class[4]:
+            start_t, end_t, days, location = classtime
+            max_y = max(max_y, end_t)
+            min_y = min(min_y, start_t)
+            if end_t == -1: # Asynchronous classes
+                continue
+            for day in days:
+                if day == 'S' or day == 'U':
+                    class_on_weekend = True
+                r_x0 = left_margin_offset + day_lookup[day] * box_width + day_lookup[day]*2
+                r_x1 = r_x0 + box_width-1
 
-            r_y0 = top_margin_offset
-            hours = (start_t // 60)
-            minutes = (start_t % 60)
-            bars_past = 0
+                r_y0 = top_margin_offset
+                hours = (start_t // 60)
+                minutes = (start_t % 60)
 
-            if start_t % 60 == 0:
-                r_y0 += hours*vertical_length_50 + hours*3
-            elif (start_t % 90-30) == 0:
-                r_y0 += length_lookup[minutes]
-                incr_90 = start_t // 90
-                r_y0 += incr_90*length_lookup[80] + incr_90*2
-        
-            r_y1 = r_y0 + length_lookup[end_t - start_t]
-            draw.rectangle([(r_x0-2, r_y0-2), (r_x1+2, r_y1+2)], fill=(0,0,0))
-            draw.rectangle([(r_x0, r_y0), (r_x1, r_y1)], fill = color)
-            draw.text((r_x0+4, r_y0+2), get_draw_text(course_class), (0,0,0), font=font)
-        colors += 1
+                if start_t % 60 == 0:
+                    r_y0 += hours*vertical_length_50 + hours*3
+                elif (start_t % 90-30) == 0:
+                    r_y0 += length_lookup[minutes]
+                    incr_90 = start_t // 90
+                    r_y0 += incr_90*length_lookup[80] + incr_90*2
+            
+                r_y1 = r_y0 + length_lookup[end_t - start_t]
+                draw.rectangle([(r_x0-2, r_y0-2), (r_x1+2, r_y1+2)], fill=(0,0,0))
+                draw.rectangle([(r_x0, r_y0), (r_x1, r_y1)], fill = color)
+                draw.text((r_x0+4, r_y0+2), get_draw_text(course_class), (0,0,0), font=font)
 
     # get the y region
     boilerplate_width, boilerplate_height = image.size
@@ -127,3 +126,12 @@ def draw_schedule(sched):
         image = image.crop((0, 0, left_margin_offset + x_region_length, y_crop_line))
     
     image.save("schedule.png")
+
+'''
+from sched_gen import generate_schedules
+(s, a) = generate_schedules(["CMPUT 174", "MATH 117", "MATH 127", "STAT 151", "WRS 101"])
+import time
+for i in range(len(s)-1):
+    draw_schedule(s[i])
+    time.sleep(1)
+'''

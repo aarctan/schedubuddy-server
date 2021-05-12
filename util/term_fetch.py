@@ -82,18 +82,30 @@ classNotes text,\
 instructorUid text)")
 
 
-classtime_keys = ['course', 'class', 'startTime', 'endTime', 'day', 'location']
+classtime_keys = ['course', 'class', 'startTime', 'endTime', 'day', 'location', 'start_t', 'end_t']
 sqlcursor.execute("CREATE TABLE IF NOT EXISTS uOfAClassTime(\
 course char(16),\
 class char(16),\
 startTime text,\
 endTime text,\
 day char(16),\
-location text)")
+location text,\
+start_t integer,\
+end_t integer)")
 
 
 print("\nInitialized database '" + database + ".db'.\nCreating entries for all courses, \
 classes, and class times . . .")
+
+def get_numerical_time(str_t):
+    h = int(str_t[0:2])
+    m = int(str_t[3:5])
+    pm = str_t[6:9] == 'PM'
+    if pm and h==12: return h*60+m
+    if pm and h<12: return (h+12)*60+m
+    if not pm and h==12: return m
+    if not pm and h<12: return h*60+m
+    return None
 
 count=0
 batches=0
@@ -131,13 +143,15 @@ for entry in entries:
 
     elif object_type=="uOfAClassTime":
         ct=[]
-        for key in classtime_keys:
+        for key in classtime_keys[:-2]:
             value = None
             try: value = str(getattr(entry, key))
             except:
                 if debug: print("Value not found for CLASSTIME "+str(getattr(classtime,"class"))+" mismatch at: "+ctkey)
             ct.append(value)
-        sqlcursor.execute("INSERT INTO uOfAClassTime (course, class, startTime, endTime, day, location) VALUES (?, ?, ?, ?, ?, ?)", (ct[0], ct[1], ct[2], ct[3], ct[4], ct[5]))
+        ct.append(get_numerical_time(ct[2]))
+        ct.append(get_numerical_time(ct[3]))
+        sqlcursor.execute("INSERT INTO uOfAClassTime (course, class, startTime, endTime, day, location, start_t, end_t) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (ct[0], ct[1], ct[2], ct[3], ct[4], ct[5], ct[6], ct[7]))
     else:
         if debug: print("\n\nUNKNOWN OBJECT_TYPE FOUND: "+object_type+"\n\n")
         

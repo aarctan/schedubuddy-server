@@ -26,7 +26,7 @@ class ScheduleSession:
         self._pages = None
         self._current_page = 0
         self._timeout_task = None
-        self.schedules = self.get_schedules(args)
+        (self.schedules, self.aliases) = self.get_schedules(args)
         self.reset_timeout()
 
     @staticmethod
@@ -39,12 +39,16 @@ class ScheduleSession:
 
     async def update_page(self, page_number: int = 0) -> None:
         self._current_page = page_number
-        msg_desc = "Listing **{}** of **{}** generated schedules for the\
-            specified course selection:"\
-            .format(str(page_number+1), str(len(self.schedules)))
-        embed = Embed(description=msg_desc, color=0xb3edbd)
+        embed = Embed(description=f'Listing **{self._current_page+1}**\
+            of **{len(self._pages)}** pages', color=0xb3edbd)
         embed.set_author(name=self.author.display_name,
                         icon_url=self.author.avatar_url)
+        footer_msg = ""
+        if len(self.aliases) > 0:
+            footer_msg = "Class time aliases found:\n"
+        for alias in self.aliases:
+            footer_msg += f"{alias}: " + ', '.join(self.aliases[alias]) + '\n'
+        embed.set_footer(text=footer_msg)
         draw_sched.draw_schedule(self.schedules[page_number])
         file = discord.File("schedule.png", filename="image.png")
         embed.set_image(url="attachment://image.png")

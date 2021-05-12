@@ -4,7 +4,7 @@ import pycosat
 from itertools import product
 from random import choice, shuffle
 
-EXHAUST_CARDINALITY_THRESHOLD = 2000000
+EXHAUST_CARDINALITY_THRESHOLD = 200000
 ASSUMED_COMMUTE_TIME = 40
 CONFLICTS = query.get_conflicts_set()
 
@@ -29,16 +29,16 @@ def _create_components(course_list):
             component_aliases = {}
             classtime_to_first_class = {}
             for component_class in component_classes:
-                class_id = component_class[-1]
-                class_time = (component_class[4], component_class[5],
-                              component_class[6])
-                if class_time in classtime_to_first_class:
-                    first_class = classtime_to_first_class[class_time]
-                    component_aliases[first_class].append(class_id)
+                class_comp_str = component_class[0] + ' ' + component_class[1] # e.g., LEC A1
+                class_times = tuple((component_class[4]))
+                if class_times in classtime_to_first_class:
+                    first_class = classtime_to_first_class[class_times]
+                    component_aliases[first_class].append(class_comp_str)
                     aliases[first_class] = component_aliases[first_class]
                 else:
-                    classtime_to_first_class[class_time] = class_id
-                    component_aliases[class_id] = []
+                    first_class_key = course + ' ' + class_comp_str
+                    classtime_to_first_class[class_times] = first_class_key
+                    component_aliases[first_class_key] = []
                     new_component.append(component_class)
             components.append(new_component)
     return (components, aliases)
@@ -111,18 +111,23 @@ def _validate_schedules(schedules):
 def _closeness_evaluate(schedule):
     clean_sched = []
     for course_class in schedule:
-        if course_class[4] != 2147483647:
+        has_time_null = False
+        for time_tuple in course_class[4]:
+            start_t = time_tuple[0]
+            if start_t == 2147483647:
+                has_time_null = True
+        if not has_time_null:
             clean_sched.append(course_class)
     schedule = clean_sched
     day_times_map = {}
     for course_class in schedule:
-        days = course_class[6]
-        start_t, end_t = course_class[4], course_class[5]
-        for day in days:
-            if not day in day_times_map:
-                day_times_map[day] = [(start_t, end_t)]
-            else:
-                day_times_map[day].append((start_t, end_t))
+        for time_tuple in course_class[4]:
+            start_t, end_t, days, _ = time_tuple
+            for day in days:
+                if not day in day_times_map:
+                    day_times_map[day] = [(start_t, end_t)]
+                else:
+                    day_times_map[day].append((start_t, end_t))
     time_not_in_class = 0
     for times in day_times_map.values():
         if len(times) == 1:
@@ -173,7 +178,7 @@ def generate_schedules(course_list):
                 sample_sched.append(choice(component))
             sampled_schedules.append(sample_sched)
         valid_schedules = _validate_schedules(sampled_schedules)
-    return _sort_by_closeness(valid_schedules)
+    return (_sort_by_closeness(valid_schedules), aliases)
+    #return (valid_schedules, aliases)
 
 #schedules = generate_schedules(["CMPUT 201", "CMPUT 272", "MATH 216", "MATH 217"])
-
