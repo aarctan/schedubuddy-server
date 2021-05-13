@@ -4,7 +4,7 @@ import pycosat
 from itertools import product
 from random import choice, shuffle
 
-EXHAUST_CARDINALITY_THRESHOLD = 200000
+EXHAUST_CARDINALITY_THRESHOLD = 500000
 ASSUMED_COMMUTE_TIME = 40
 CONFLICTS = query.get_conflicts_set()
 
@@ -30,7 +30,10 @@ def _create_components(course_list):
             classtime_to_first_class = {}
             for component_class in component_classes:
                 class_comp_str = component_class[0] + ' ' + component_class[1] # e.g., LEC A1
-                class_times = tuple((component_class[4]))
+                class_times = []
+                for i in range(len(component_class[4])):
+                    class_times.append((component_class[4][i][:3]))
+                class_times = tuple(class_times)
                 if class_times in classtime_to_first_class:
                     first_class = classtime_to_first_class[class_times]
                     component_aliases[first_class].append(class_comp_str)
@@ -130,15 +133,34 @@ def _closeness_evaluate(schedule):
                     day_times_map[day].append((start_t, end_t))
     time_not_in_class = 0
     for times in day_times_map.values():
+        time_not_in_class += ASSUMED_COMMUTE_TIME * 2
         if len(times) == 1:
-            time_not_in_class += ASSUMED_COMMUTE_TIME * 2
             continue
         times.sort()
+        i = 0
+        while i <= len(times)-2:
+            t_i, t_j = times[i], times[i+1]
+            if t_j[0] - t_i[1] <= 15:
+                times[i] = (t_i[0], t_j[1])
+                del times[i+1]
+                i -= 1
+            i += 1
         day_time_spent = times[-1][1] - times[0][0]
         for time_tuple in times:
             day_time_spent -= (time_tuple[1] - time_tuple[0])
         time_not_in_class += day_time_spent
+#    print(day_times_map)
     return time_not_in_class
+
+'''
+We want to statically evaluate a schedule, meaning that we can assign it
+a score after considering all preferences (start time, marathons, etc.), without
+comparing it to other schedules in the list of valid schedules. To do so, I made
+some assumptions about a good schedule:
+1. Classes should start at the same time every day.
+2. Every day should have an equal amount of time spent in class.
+3. For every 3 hours of consecutive classes, a 1 hour break is ideal.
+'''
 
 def _sort_by_closeness(schedules):
     shuffle(schedules)
@@ -181,4 +203,7 @@ def generate_schedules(course_list):
     return (_sort_by_closeness(valid_schedules), aliases)
     #return (valid_schedules, aliases)
 
-#schedules = generate_schedules(["CMPUT 201", "CMPUT 272", "MATH 216", "MATH 217"])
+#(s, a) = schedules = generate_schedules(["CMPUT 174", "MATH 117", "MATH 127", "STAT 151", "WRS 101"])
+
+S = (['LAB', 'D26', 'MAIN', None, [(1020, 1190, 'R', None)], 'CMPUT 174', '45438'], ['LEC', 'A6', 'MAIN', None, [(930, 1010, 'TR', None)], 'CMPUT 174', '47558'], ['LEC', 'SA1', 'MAIN', None, [(780, 830, 'R', 'CCIS L1-140'), (600, 650, 'MWF', 'CCIS L1-140')], 'MATH 117', '44640'], ['LEC', 'A1', 'MAIN', None, [(780, 830, 'T', None), (540, 590, 'MWF', 'CAB 235')], 'MATH 127', '53158'], ['LEC', '802', 'ONLINE', None, [(1020, 1200, 'T', None)], 'STAT 151', '45634'], ['SEM', 'A4', 'MAIN', None, [(840, 920, 'TR', 'HC 2-34')], 'WRS 101', '52320'])
+_closeness_evaluate(S)

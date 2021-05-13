@@ -42,7 +42,6 @@ def get_draw_text(course_class, location=''):
             while font.getsize(instructor_text + '...')[0] > box_width-3:
                 instructor_text = instructor_text[:-1]
             instructor_text += '...'
-        instructor_text_size = font.getsize(instructor_text)
 
 #    write "ONLINE" if it's an online class
 #    location = course_class[7] if course_class[7] else course_class[2]
@@ -85,6 +84,7 @@ def draw_schedule(sched):
 
                 draw.rectangle([(r_x0-2, r_y0-2), (r_x1+2, r_y1+2)], fill=(0,0,0))
                 draw.rectangle([(r_x0, r_y0), (r_x1, r_y1)], fill = color)
+                location = location if location else course_class[2]
                 draw.text((r_x0+4, r_y0+2), get_draw_text(course_class, location=location), (0,0,0), font=font)
 
     # get the y region
@@ -119,10 +119,12 @@ for i in range(len(s)-1):
     draw_schedule(s[i])
     time.sleep(1)
 '''
+
+
 '''
 s = (['LEC', 'X01', 'MAIN', None, [\
-    (480, 480+80, 'T', 'HC 2-12'),\
-    (480, 480+50, 'M', 'HC 2-12'),\
+    (480, 480+90, 'M', 'HC 2-12'),\
+    (480+90, 480+90+90, 'M', 'HC 2-12'),\
     (480, 480+170, 'W', 'HC 2-12'),\
     (480, 480+110, 'F', 'HC 2-12')], 'JAPAN 101', '51778'],)
 
