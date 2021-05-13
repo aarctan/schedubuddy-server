@@ -1,6 +1,7 @@
 import sched_gen
 import draw_sched
 
+from io import BytesIO
 from contextlib import suppress
 import asyncio
 import discord
@@ -48,9 +49,14 @@ class ScheduleSession:
             footer_msg = "Class time aliases found:\n"
         for alias in self.aliases:
             footer_msg += f"{alias}: " + ', '.join(self.aliases[alias]) + '\n'
+        if len(self.aliases) > 0:
+            footer_msg = '* These classes have sections with identical times'
         embed.set_footer(text=footer_msg)
-        draw_sched.draw_schedule(self.schedules[page_number])
-        file = discord.File("schedule.png", filename="image.png")
+        image = draw_sched.draw_schedule(self.schedules[page_number])
+        bufferedio = BytesIO()
+        image.save(bufferedio, format="PNG")
+        bufferedio.seek(0)
+        file = discord.File(bufferedio, filename="image.png")
         embed.set_image(url="attachment://image.png")
         self.new_message = await self.destination.send(file=file, embed=embed)
         if self.message:
@@ -77,7 +83,7 @@ class ScheduleSession:
         self._bot.remove_listener(self.on_reaction_add)
         await self.message.clear_reactions()
 
-    async def timeout(self, seconds: int = 60) -> None:
+    async def timeout(self, seconds: int = 180) -> None:
         await asyncio.sleep(seconds)
         await self.stop()
 
