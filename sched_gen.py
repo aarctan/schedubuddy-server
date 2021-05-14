@@ -21,17 +21,19 @@ some assumptions about a good schedule:
 '''
 
 class ValidSchedule:
-    def __init__(self, schedule, aliases, blocks):
+    def __init__(self, schedule, aliases, blocks, num_pages):
         self._schedule = schedule
         self._aliases = aliases
         self._blocks = blocks
+        self._num_pages = num_pages
         self.gap_err = self.compute_gap_err()
         self.time_variance = self.compute_time_variance()
         self.time_wasted = self.compute_time_wasted()
-        self.gap_rank = None
+        self.gap_err_rank = None
         self.time_var_rank = None
         self.time_wasted_rank = None
         self.overall_rank = None
+        self.score = None
 
     def compute_gap_err(self):
         SVE = 0
@@ -66,7 +68,12 @@ class ValidSchedule:
         return self.time_variance
 
     def set_overall_rank(self):
-        self.overall_rank = (self.time_wasted + self.gap_err + self.time_variance) / 3
+        #self.overall_rank = self.time_variance
+        #self.overall_rank = (self.time_wasted*1 + self.gap_err*1 + self.time_variance*1) / 3
+        combined_rank = self.time_wasted_rank +\
+            self.gap_err_rank +\
+            self.time_var_rank
+        self.score = round(((combined_rank / (self._num_pages*3)) * 5), 2)
     
     def get_schedule(self):
         return self._schedule
@@ -211,9 +218,11 @@ def _get_schedule_blocks(schedule):
 
 def _master_sort(schedules):
     sched_objs = []
+    print(len(schedules))
+    num_pages = len(schedules)
     for schedule in schedules:
         blocks = _get_schedule_blocks(schedule)
-        sched_obj = ValidSchedule(schedule, [], blocks)
+        sched_obj = ValidSchedule(schedule, [], blocks, num_pages)
         sched_objs.append(sched_obj)
     gap_err_sorted = sorted(sched_objs, key=lambda SO: SO.gap_err, reverse=True)
     time_var_sorted = sorted(sched_objs, key=lambda SO: SO.time_variance, reverse=True)
@@ -226,7 +235,8 @@ def _master_sort(schedules):
         sched_obj.time_wasted_rank = i+1
     for sched_obj in sched_objs:
         sched_obj.set_overall_rank()
-    overall_sorted = sorted(sched_objs, key=lambda SO: SO.overall_rank)
+    overall_sorted = sorted(sched_objs, key=lambda SO: SO.score, reverse=True)
+    #overall_sorted = sorted(sched_objs, key=lambda SO: SO.overall_rank)
     return overall_sorted
 
 
@@ -260,7 +270,8 @@ def generate_schedules(course_list):
         valid_schedules = _validate_schedules(sampled_schedules)
     return (_master_sort(valid_schedules), aliases)
 
-#(s, a) = schedules = generate_schedules(["CMPUT 174", "MATH 117", "MATH 127", "STAT 151", "WRS 101"])
+(s, a) = schedules = generate_schedules(["CMPUT 174", "MATH 117", "MATH 127", "STAT 151", "WRS 101"])
+
 
 #S = (['LAB', 'D26', 'MAIN', None, [(1020, 1190, 'R', None)], 'CMPUT 174', '45438'], ['LEC', 'A6', 'MAIN', None, [(930, 1010, 'TR', None)], 'CMPUT 174', '47558'], ['LEC', 'SA1', 'MAIN', None, [(780, 830, 'R', 'CCIS L1-140'), (600, 650, 'MWF', 'CCIS L1-140')], 'MATH 117', '44640'], ['LEC', 'A1', 'MAIN', None, [(780, 830, 'T', None), (540, 590, 'MWF', 'CAB 235')], 'MATH 127', '53158'], ['LEC', '802', 'ONLINE', None, [(1020, 1200, 'T', None)], 'STAT 151', '45634'], ['SEM', 'A4', 'MAIN', None, [(840, 920, 'TR', 'HC 2-34')], 'WRS 101', '52320'])
 #_closeness_evaluate(S)
