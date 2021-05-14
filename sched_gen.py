@@ -7,8 +7,70 @@ from random import choice, shuffle
 
 EXHAUST_CARDINALITY_THRESHOLD = 500000
 ASSUMED_COMMUTE_TIME = 40
-IDEAL_CONSECUTIVE_LENGTH = 4
+IDEAL_CONSECUTIVE_LENGTH = 3
 CONFLICTS = query.get_conflicts_set()
+
+'''
+We want to statically evaluate a schedule, meaning that we can assign it
+a score after considering all preferences (start time, marathons, etc.), without
+comparing it to other schedules in the list of valid schedules. To do so, I made
+some assumptions about a good schedule:
+1. Classes should start at the same time every day.
+2. Every day should have an equal amount of time spent in class.
+3. For every 3 hours of consecutive classes, a 1 hour break is ideal.
+'''
+
+class ValidSchedule:
+    def __init__(self, schedule, aliases, blocks):
+        self._schedule = schedule
+        self._aliases = aliases
+        self._blocks = blocks
+        self.gap_err = self.compute_gap_err()
+        self.time_variance = self.compute_time_variance()
+        self.time_wasted = self.compute_time_wasted()
+        self.gap_rank = None
+        self.time_var_rank = None
+        self.time_wasted_rank = None
+        self.overall_rank = None
+
+    def compute_gap_err(self):
+        SVE = 0
+        for day_blocks in self._blocks.values():
+            for block in day_blocks:
+                block_len = block[1] - block[0]
+                SVE += (IDEAL_CONSECUTIVE_LENGTH*60 - block_len)**2
+        return SVE
+    
+    def compute_time_variance(self):
+        start_times, end_times = [], []
+        for day in self._blocks.keys():
+            start_times.append(self._blocks[day][0][0])
+            end_times.append(self._blocks[day][-1][1])
+        return np.var(start_times)*1.5 + np.var(end_times)
+    
+    def compute_time_wasted(self):
+        time_wasted = 0
+        for day in self._blocks.keys():
+            time_wasted += ASSUMED_COMMUTE_TIME * 2
+            day_blocks = self._blocks[day]
+            day_time_wasted = day_blocks[-1][1] - day_blocks[0][0]
+            for block in day_blocks:
+                day_time_wasted -= block[1] - block[0]
+            time_wasted += day_time_wasted
+        return time_wasted
+    
+    def get_gap_err(self):
+        return self.gap_err
+    
+    def get_time_variance(self):
+        return self.time_variance
+
+    def set_overall_rank(self):
+        self.overall_rank = (self.time_wasted + self.gap_err + self.time_variance) / 3
+    
+    def get_schedule(self):
+        return self._schedule
+
 
 # param course_list is a list of strings of form "SUBJ CATALOG" e.g. "CHEM 101".
 # returns a tuple (components, aliases). components is list of components where
@@ -147,43 +209,26 @@ def _get_schedule_blocks(schedule):
             i += 1
     return day_times_map
 
-def _closeness_evaluate(blocks):
-    SVE = 0
-    for day_blocks in blocks.values():
-        for block in day_blocks:
-            block_len = block[1] - block[0]
-            SVE += (IDEAL_CONSECUTIVE_LENGTH*60 - block_len)**2
-    return SVE
-
-def _time_uniformity(blocks):
-    print(blocks)
-    start_times, end_times = [], []
-    for day in blocks.keys():
-        start_times.append(blocks[day][0][0])
-        end_times.append(blocks[day][-1][1])
-    return (np.var(start_times), np.var(end_times))
-
-'''
-We want to statically evaluate a schedule, meaning that we can assign it
-a score after considering all preferences (start time, marathons, etc.), without
-comparing it to other schedules in the list of valid schedules. To do so, I made
-some assumptions about a good schedule:
-1. Classes should start at the same time every day.
-2. Every day should have an equal amount of time spent in class.
-3. For every 3 hours of consecutive classes, a 1 hour break is ideal.
-'''
-
-def _sort_by_closeness(schedules):
-    shuffle(schedules)
-    schedule_timewasted = []
+def _master_sort(schedules):
+    sched_objs = []
     for schedule in schedules:
-        schedule_blocks = _get_schedule_blocks(schedule)
-        time_not_in_class = _closeness_evaluate(schedule_blocks)
-        x = _time_uniformity(schedule_blocks)
-        schedule_timewasted.append((schedule, time_not_in_class))
-    schedule_timewasted.sort(key=lambda t: t[1])
-    sorted_schedules = [s[0] for s in schedule_timewasted]
-    return sorted_schedules
+        blocks = _get_schedule_blocks(schedule)
+        sched_obj = ValidSchedule(schedule, [], blocks)
+        sched_objs.append(sched_obj)
+    gap_err_sorted = sorted(sched_objs, key=lambda SO: SO.gap_err, reverse=True)
+    time_var_sorted = sorted(sched_objs, key=lambda SO: SO.time_variance, reverse=True)
+    time_waste_sorted = sorted(sched_objs, key=lambda SO: SO.time_wasted, reverse=True)
+    for i, sched_obj in enumerate(gap_err_sorted):
+        sched_obj.gap_err_rank = i+1
+    for i, sched_obj in enumerate(time_var_sorted):
+        sched_obj.time_var_rank = i+1
+    for i, sched_obj in enumerate(time_waste_sorted):
+        sched_obj.time_wasted_rank = i+1
+    for sched_obj in sched_objs:
+        sched_obj.set_overall_rank()
+    overall_sorted = sorted(sched_objs, key=lambda SO: SO.overall_rank)
+    return overall_sorted
+
 
 # Generate valid schedules for a string list of courses. First construct a
 # a list of components, where a "component" is a set of classes where each
@@ -213,10 +258,9 @@ def generate_schedules(course_list):
                 sample_sched.append(choice(component))
             sampled_schedules.append(sample_sched)
         valid_schedules = _validate_schedules(sampled_schedules)
-    return (_sort_by_closeness(valid_schedules), aliases)
+    return (_master_sort(valid_schedules), aliases)
 
-(s, a) = schedules = generate_schedules(["CMPUT 174", "MATH 117", "MATH 127", "STAT 151", "WRS 101"])
-
+#(s, a) = schedules = generate_schedules(["CMPUT 174", "MATH 117", "MATH 127", "STAT 151", "WRS 101"])
 
 #S = (['LAB', 'D26', 'MAIN', None, [(1020, 1190, 'R', None)], 'CMPUT 174', '45438'], ['LEC', 'A6', 'MAIN', None, [(930, 1010, 'TR', None)], 'CMPUT 174', '47558'], ['LEC', 'SA1', 'MAIN', None, [(780, 830, 'R', 'CCIS L1-140'), (600, 650, 'MWF', 'CCIS L1-140')], 'MATH 117', '44640'], ['LEC', 'A1', 'MAIN', None, [(780, 830, 'T', None), (540, 590, 'MWF', 'CAB 235')], 'MATH 127', '53158'], ['LEC', '802', 'ONLINE', None, [(1020, 1200, 'T', None)], 'STAT 151', '45634'], ['SEM', 'A4', 'MAIN', None, [(840, 920, 'TR', 'HC 2-34')], 'WRS 101', '52320'])
 #_closeness_evaluate(S)
