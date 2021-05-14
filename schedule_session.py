@@ -45,14 +45,14 @@ class ScheduleSession:
         embed.set_author(name=self.author.display_name,
                         icon_url=self.author.avatar_url)
         footer_msg = ""
+        curr_sched = self.schedules[page_number]
+        score = curr_sched.score
+        footer_msg += f'Schedule score: {score}/5'
         if len(self.aliases) > 0:
-            footer_msg = "Class time aliases found:\n"
-        for alias in self.aliases:
-            footer_msg += f"{alias}: " + ', '.join(self.aliases[alias]) + '\n'
-        if len(self.aliases) > 0:
-            footer_msg = '* These classes have sections with identical times'
+            footer_msg += '\n* These classes have sections with identical times'
         embed.set_footer(text=footer_msg)
-        image = draw_sched.draw_schedule(self.schedules[page_number])
+#        print(curr_sched.gap_err, curr_sched.time_variance, curr_sched.gap_err_rank, curr_sched.time_var_rank)
+        image = draw_sched.draw_schedule(curr_sched._schedule)
         bufferedio = BytesIO()
         image.save(bufferedio, format="PNG")
         bufferedio.seek(0)
