@@ -1,11 +1,13 @@
 import query
 
 import pycosat
+import numpy as np
 from itertools import product
 from random import choice, shuffle
 
 EXHAUST_CARDINALITY_THRESHOLD = 500000
 ASSUMED_COMMUTE_TIME = 40
+IDEAL_CONSECUTIVE_LENGTH = 4
 CONFLICTS = query.get_conflicts_set()
 
 # param course_list is a list of strings of form "SUBJ CATALOG" e.g. "CHEM 101".
@@ -111,7 +113,7 @@ def _validate_schedules(schedules):
             valid_schedules.append(schedule)
     return valid_schedules
 
-def _closeness_evaluate(schedule):
+def _get_schedule_blocks(schedule):
     clean_sched = []
     for course_class in schedule:
         has_time_null = False
@@ -131,9 +133,7 @@ def _closeness_evaluate(schedule):
                     day_times_map[day] = [(start_t, end_t)]
                 else:
                     day_times_map[day].append((start_t, end_t))
-    time_not_in_class = 0
     for times in day_times_map.values():
-        time_not_in_class += ASSUMED_COMMUTE_TIME * 2
         if len(times) == 1:
             continue
         times.sort()
@@ -145,12 +145,23 @@ def _closeness_evaluate(schedule):
                 del times[i+1]
                 i -= 1
             i += 1
-        day_time_spent = times[-1][1] - times[0][0]
-        for time_tuple in times:
-            day_time_spent -= (time_tuple[1] - time_tuple[0])
-        time_not_in_class += day_time_spent
-#    print(day_times_map)
-    return time_not_in_class
+    return day_times_map
+
+def _closeness_evaluate(blocks):
+    SVE = 0
+    for day_blocks in blocks.values():
+        for block in day_blocks:
+            block_len = block[1] - block[0]
+            SVE += (IDEAL_CONSECUTIVE_LENGTH*60 - block_len)**2
+    return SVE
+
+def _time_uniformity(blocks):
+    print(blocks)
+    start_times, end_times = [], []
+    for day in blocks.keys():
+        start_times.append(blocks[day][0][0])
+        end_times.append(blocks[day][-1][1])
+    return (np.var(start_times), np.var(end_times))
 
 '''
 We want to statically evaluate a schedule, meaning that we can assign it
@@ -166,7 +177,9 @@ def _sort_by_closeness(schedules):
     shuffle(schedules)
     schedule_timewasted = []
     for schedule in schedules:
-        time_not_in_class = _closeness_evaluate(schedule)
+        schedule_blocks = _get_schedule_blocks(schedule)
+        time_not_in_class = _closeness_evaluate(schedule_blocks)
+        x = _time_uniformity(schedule_blocks)
         schedule_timewasted.append((schedule, time_not_in_class))
     schedule_timewasted.sort(key=lambda t: t[1])
     sorted_schedules = [s[0] for s in schedule_timewasted]
@@ -201,9 +214,10 @@ def generate_schedules(course_list):
             sampled_schedules.append(sample_sched)
         valid_schedules = _validate_schedules(sampled_schedules)
     return (_sort_by_closeness(valid_schedules), aliases)
-    #return (valid_schedules, aliases)
 
-#(s, a) = schedules = generate_schedules(["CMPUT 174", "MATH 117", "MATH 127", "STAT 151", "WRS 101"])
+(s, a) = schedules = generate_schedules(["CMPUT 174", "MATH 117", "MATH 127", "STAT 151", "WRS 101"])
 
-S = (['LAB', 'D26', 'MAIN', None, [(1020, 1190, 'R', None)], 'CMPUT 174', '45438'], ['LEC', 'A6', 'MAIN', None, [(930, 1010, 'TR', None)], 'CMPUT 174', '47558'], ['LEC', 'SA1', 'MAIN', None, [(780, 830, 'R', 'CCIS L1-140'), (600, 650, 'MWF', 'CCIS L1-140')], 'MATH 117', '44640'], ['LEC', 'A1', 'MAIN', None, [(780, 830, 'T', None), (540, 590, 'MWF', 'CAB 235')], 'MATH 127', '53158'], ['LEC', '802', 'ONLINE', None, [(1020, 1200, 'T', None)], 'STAT 151', '45634'], ['SEM', 'A4', 'MAIN', None, [(840, 920, 'TR', 'HC 2-34')], 'WRS 101', '52320'])
-_closeness_evaluate(S)
+
+#S = (['LAB', 'D26', 'MAIN', None, [(1020, 1190, 'R', None)], 'CMPUT 174', '45438'], ['LEC', 'A6', 'MAIN', None, [(930, 1010, 'TR', None)], 'CMPUT 174', '47558'], ['LEC', 'SA1', 'MAIN', None, [(780, 830, 'R', 'CCIS L1-140'), (600, 650, 'MWF', 'CCIS L1-140')], 'MATH 117', '44640'], ['LEC', 'A1', 'MAIN', None, [(780, 830, 'T', None), (540, 590, 'MWF', 'CAB 235')], 'MATH 127', '53158'], ['LEC', '802', 'ONLINE', None, [(1020, 1200, 'T', None)], 'STAT 151', '45634'], ['SEM', 'A4', 'MAIN', None, [(840, 920, 'TR', 'HC 2-34')], 'WRS 101', '52320'])
+#_closeness_evaluate(S)
+
