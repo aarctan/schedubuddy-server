@@ -1,5 +1,4 @@
-from flask import json
-import query
+from scheduler import query
 
 import pycosat
 import numpy as np
