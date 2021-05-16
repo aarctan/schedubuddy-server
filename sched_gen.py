@@ -1,3 +1,4 @@
+from flask import json
 import query
 
 import pycosat
@@ -7,7 +8,7 @@ from random import choice, shuffle
 
 EXHAUST_CARDINALITY_THRESHOLD = 500000
 ASSUMED_COMMUTE_TIME = 40
-IDEAL_CONSECUTIVE_LENGTH = 3
+IDEAL_CONSECUTIVE_LENGTH = 3.5*60
 CONFLICTS = query.get_conflicts_set()
 
 '''
@@ -36,12 +37,16 @@ class ValidSchedule:
         self.score = None
 
     def compute_gap_err(self):
-        SVE = 0
+        GVE = 0
         for day_blocks in self._blocks.values():
             for block in day_blocks:
                 block_len = block[1] - block[0]
-                SVE += (IDEAL_CONSECUTIVE_LENGTH*60 - block_len)**2
-        return SVE
+                if block_len <= IDEAL_CONSECUTIVE_LENGTH:
+                    GVE += (IDEAL_CONSECUTIVE_LENGTH - block_len)**2
+                else:
+                    # greatly discourage very long marathons
+                    GVE += (block_len - IDEAL_CONSECUTIVE_LENGTH)**3
+        return GVE
     
     def compute_time_variance(self):
         start_times, end_times = [], []
@@ -68,12 +73,17 @@ class ValidSchedule:
         return self.time_variance
 
     def set_overall_rank(self):
-        #self.overall_rank = self.time_variance
-        #self.overall_rank = (self.time_wasted*1 + self.gap_err*1 + self.time_variance*1) / 3
         combined_rank = self.time_wasted_rank +\
             self.gap_err_rank +\
             self.time_var_rank
-        self.score = round(((combined_rank / (self._num_pages*3)) * 5), 2)
+        self.score = round(((combined_rank / (self._num_pages*3*1.5)) * 5), 2)
+
+        adjusted_combined_rank =\
+            self.time_wasted_rank*1 +\
+            self.gap_err_rank*1 +\
+            self.time_var_rank*1
+        self.adjusted_score = round(((adjusted_combined_rank /
+            (self._num_pages*3)) * 5), 2)
     
     def get_schedule(self):
         return self._schedule
@@ -218,7 +228,6 @@ def _get_schedule_blocks(schedule):
 
 def _master_sort(schedules):
     sched_objs = []
-    print(len(schedules))
     num_pages = len(schedules)
     for schedule in schedules:
         blocks = _get_schedule_blocks(schedule)
@@ -235,10 +244,38 @@ def _master_sort(schedules):
         sched_obj.time_wasted_rank = i+1
     for sched_obj in sched_objs:
         sched_obj.set_overall_rank()
-    overall_sorted = sorted(sched_objs, key=lambda SO: SO.score, reverse=True)
-    #overall_sorted = sorted(sched_objs, key=lambda SO: SO.overall_rank)
+    overall_sorted = sorted(sched_objs, key=lambda SO: SO.adjusted_score, reverse=True)
+    overall_sorted = overall_sorted[:min(100, num_pages)]
+    #shuffle(overall_sorted)
     return overall_sorted
 
+def key_obj(course_class):
+    obj = {}
+    obj["component"] = course_class[0]
+    obj["section"] = course_class[1]
+    obj["campus"] = course_class[2]
+    obj["instructor"] = course_class[3]
+    times_list = []
+    for time in course_class[4]:
+        time_obj = {}
+        time_obj["startTime"] = time[0]
+        time_obj["endTime"] = time[1]
+        time_obj["day"] = time[2]
+        time_obj["location"] = time[3]
+        times_list.append(time_obj)
+    obj["times"] = times_list
+    return obj
+
+def json_sched(sched):
+    prev_course = None
+    course_sched = {}
+    for course_class in sched:
+        course = course_class[5]
+        if prev_course != course:
+            course_sched[course] = {}
+            prev_course = course
+        course_sched[course][course_class[6]] = key_obj(course_class)
+    return course_sched
 
 # Generate valid schedules for a string list of courses. First construct a
 # a list of components, where a "component" is a set of classes where each
@@ -268,11 +305,18 @@ def generate_schedules(course_list):
                 sample_sched.append(choice(component))
             sampled_schedules.append(sample_sched)
         valid_schedules = _validate_schedules(sampled_schedules)
-    return (_master_sort(valid_schedules), aliases)
+    sorted_schedules = _master_sort(valid_schedules)
+    json_schedules = {"schedules": [json_sched(s._schedule) for s in sorted_schedules[:2]]}
+    return (json_schedules, aliases)
 
+'''
 (s, a) = schedules = generate_schedules(["CMPUT 174", "MATH 117", "MATH 127", "STAT 151", "WRS 101"])
+(s, a) = schedules = generate_schedules(["CHEM 101"])
+sched = s[0]._schedule
 
+print(course_sched)
 
 #S = (['LAB', 'D26', 'MAIN', None, [(1020, 1190, 'R', None)], 'CMPUT 174', '45438'], ['LEC', 'A6', 'MAIN', None, [(930, 1010, 'TR', None)], 'CMPUT 174', '47558'], ['LEC', 'SA1', 'MAIN', None, [(780, 830, 'R', 'CCIS L1-140'), (600, 650, 'MWF', 'CCIS L1-140')], 'MATH 117', '44640'], ['LEC', 'A1', 'MAIN', None, [(780, 830, 'T', None), (540, 590, 'MWF', 'CAB 235')], 'MATH 127', '53158'], ['LEC', '802', 'ONLINE', None, [(1020, 1200, 'T', None)], 'STAT 151', '45634'], ['SEM', 'A4', 'MAIN', None, [(840, 920, 'TR', 'HC 2-34')], 'WRS 101', '52320'])
 #_closeness_evaluate(S)
+'''
 
