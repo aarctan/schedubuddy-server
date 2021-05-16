@@ -1,0 +1,60 @@
+{
+    "server": "directory.srv.ualberta.ca",
+    "calendar":
+    {
+        "uOfATerm": [
+            "term",
+            "termTitle",
+            "startDate",
+            "endDate"
+        ],
+        "uOfACourse": [
+            "term",
+            "course",
+            "subject",
+            "catalog",
+            "asString",
+            "units",
+            "courseTitle",
+            "subjectTitle",
+            "courseDescription",
+            "career",
+            "faculty",
+            "facultyCode",
+            "department",
+            "departmentCode"
+        ],
+        "uOfAClass": [
+            "term",
+            "course",
+            "class",
+            "component",
+            "section",
+            "asString",
+            "campus",
+            "capacity",
+            "classStatus",
+            "classType",
+            "consent",
+            "startDate",
+            "endDate",
+            "enrollStatus",
+            "gradingBasis",
+            "instructionMode",
+            "location",
+            "session",
+            "units"
+        ],
+        "uOfAClassTime": [
+            "term",
+            "course",
+            "class",
+            "term",
+            "startDate",
+            "endDate",
+            "day",
+            "startTime",
+            "endTime"
+        ]
+    }
+}
