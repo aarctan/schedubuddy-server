@@ -13,7 +13,6 @@ def api_id():
         query = eval(request.args['query'])
         courses_queried = query["courses"]
         (s, a) = sched_gen.generate_schedules(courses_queried)
-#        json_schedules = [sched._schedule for sched in s]
         return jsonify(s)
     else:
         return "Error: No query provided to gen-schedules."

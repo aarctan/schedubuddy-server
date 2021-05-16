@@ -11,16 +11,6 @@ ASSUMED_COMMUTE_TIME = 40
 IDEAL_CONSECUTIVE_LENGTH = 3.5*60
 CONFLICTS = query.get_conflicts_set()
 
-'''
-We want to statically evaluate a schedule, meaning that we can assign it
-a score after considering all preferences (start time, marathons, etc.), without
-comparing it to other schedules in the list of valid schedules. To do so, I made
-some assumptions about a good schedule:
-1. Classes should start at the same time every day.
-2. Every day should have an equal amount of time spent in class.
-3. For every 3 hours of consecutive classes, a 1 hour break is ideal.
-'''
-
 class ValidSchedule:
     def __init__(self, schedule, aliases, blocks, num_pages):
         self._schedule = schedule
@@ -249,8 +239,9 @@ def _master_sort(schedules):
     #shuffle(overall_sorted)
     return overall_sorted
 
-def key_obj(course_class):
+def _key_obj(course_class):
     obj = {}
+    obj["class"] = course_class[6]
     obj["component"] = course_class[0]
     obj["section"] = course_class[1]
     obj["campus"] = course_class[2]
@@ -266,15 +257,15 @@ def key_obj(course_class):
     obj["times"] = times_list
     return obj
 
-def json_sched(sched):
+def _json_sched(sched):
     prev_course = None
     course_sched = {}
     for course_class in sched:
         course = course_class[5]
         if prev_course != course:
-            course_sched[course] = {}
+            course_sched[course] = []
             prev_course = course
-        course_sched[course][course_class[6]] = key_obj(course_class)
+        course_sched[course].append(_key_obj(course_class))
     return course_sched
 
 # Generate valid schedules for a string list of courses. First construct a
@@ -306,7 +297,7 @@ def generate_schedules(course_list):
             sampled_schedules.append(sample_sched)
         valid_schedules = _validate_schedules(sampled_schedules)
     sorted_schedules = _master_sort(valid_schedules)
-    json_schedules = {"schedules": [json_sched(s._schedule) for s in sorted_schedules[:2]]}
+    json_schedules = {"schedules": [_json_sched(s._schedule) for s in sorted_schedules]}
     return (json_schedules, aliases)
 
 '''
