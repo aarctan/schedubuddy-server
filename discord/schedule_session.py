@@ -1,5 +1,5 @@
-import sched_gen
-import draw_sched
+from scheduler.sched_gen import generate_schedules
+from draw.draw_sched import draw_schedule
 
 from io import BytesIO
 from contextlib import suppress
@@ -36,7 +36,7 @@ class ScheduleSession:
         for i in range(len(args)):
             args[i] = args[i].upper()
         courses_queried = [x+' '+y for x,y in zip(args[0::2], args[1::2])]
-        return sched_gen.generate_schedules(courses_queried)
+        return generate_schedules(courses_queried)
 
     async def update_page(self, page_number: int = 0) -> None:
         self._current_page = page_number
@@ -52,7 +52,7 @@ class ScheduleSession:
             footer_msg += '\n* These classes have sections with identical times'
         embed.set_footer(text=footer_msg)
 #        print(curr_sched.gap_err, curr_sched.time_variance, curr_sched.gap_err_rank, curr_sched.time_var_rank)
-        image = draw_sched.draw_schedule(curr_sched._schedule)
+        image = draw_schedule(curr_sched._schedule)
         bufferedio = BytesIO()
         image.save(bufferedio, format="PNG")
         bufferedio.seek(0)

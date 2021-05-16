@@ -1,9 +1,14 @@
 import sqlite3
+import os
 
 DATABASE = "Fall_21"
 
-readconn_main = sqlite3.connect(DATABASE + ".db", check_same_thread=False)
-readconn_names = sqlite3.connect("instructor_names.db", check_same_thread=False)
+dirname = os.path.dirname(__file__)
+term_db_path = os.path.join(dirname, "../localdb/"+DATABASE+".db")
+instructors_db_path = os.path.join(dirname, "../localdb/instructor_names.db")
+
+readconn_main = sqlite3.connect(term_db_path, check_same_thread=False)
+readconn_names = sqlite3.connect(instructors_db_path, check_same_thread=False)
 rc_main = readconn_main.cursor()
 rc_names = readconn_names.cursor()
 

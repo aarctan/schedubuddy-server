@@ -1,7 +1,7 @@
 import flask
 from flask import request, jsonify
 
-import sched_gen
+from scheduler.sched_gen import generate_schedules
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -12,9 +12,10 @@ def api_id():
     if 'query' in request.args:
         query = eval(request.args['query'])
         courses_queried = query["courses"]
-        (s, a) = sched_gen.generate_schedules(courses_queried)
+        (s, a) = generate_schedules(courses_queried)
         return jsonify(s)
     else:
         return "Error: No query provided to gen-schedules."
 
-app.run()
+if __name__ == "__main__":
+    app.run()

@@ -1,5 +1,5 @@
 from io import BytesIO
-from sched_gen import generate_schedules
+#from sched_gen import generate_schedules
 from PIL import Image, ImageDraw, ImageFont
 from math import floor, ceil
 
@@ -108,7 +108,7 @@ def draw_schedule(sched):
         x_region = image.crop((x_region_left, 0, x_region_right, y_crop_line))
         image.paste(x_region, (left_margin_offset, 0, left_margin_offset+x_region_length, y_crop_line))
         image = image.crop((0, 0, left_margin_offset + x_region_length, y_crop_line))
-    #image.save("schedule.png")
+    image.save("schedule.png")
     return image
 
 '''
@@ -131,3 +131,6 @@ s = (['LEC', 'X01', 'MAIN', None, [\
 print(s)
 draw_schedule(s)
 '''
+
+#s = [['LEC', 'A1', 'MAIN', None, [(540, 650, 'F', None), (540, 650, 'W', None)], 'CMPUT 401', '56366'], ['SEM', 'F1', 'MAIN', None, [(1020, 1260, 'F', None), (540, 590, 'M', None)], 'CMPUT 401', '56367'], ['LAB', 'D01', 'MAIN', None, [(540, 960, 'US', None)], 'CMPUT 401', '56368']]
+#draw_schedule(s)
