@@ -1,4 +1,13 @@
-import json, ldap3, sqlite3, logging, sys, os, datetime, shutil
+import json
+import ldap3
+import sqlite3
+import logging
+import sys
+import os
+import datetime
+import shutil
+import requests
+from bs4 import BeautifulSoup
 
 # Set logging level to at least INFO to disable debug messages.
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
@@ -11,28 +20,6 @@ SEARCH_PREFIX = "ou=calendar,dc=ualberta,dc=ca"
 server = ldap3.Server(university_json["server"])
 ldap_conn = ldap3.Connection(server, auto_bind=True)
 
-def get_ongoing_terms():
-    logging.debug("Searching for active terms...")
-    ldap_conn.search(SEARCH_PREFIX, '(objectClass=uOfATerm)',
-                    attributes=ldap3.ALL_ATTRIBUTES, paged_size=50000)
-    terms = ldap_conn.entries
-    curr_terms = []
-    today_date = date_time_obj = datetime.datetime.now()
-    for term in terms:
-        term_dict = term.entry_attributes_as_dict
-        collect_attrs = university_json["calendar"]["uOfATerm"]
-        key_intersect = term_dict.keys() & collect_attrs
-        clean_term = {}
-        for key in key_intersect:
-            clean_term[key] = term_dict[key]
-        if "Continuing" in clean_term["termTitle"][0]:
-            continue
-        term_end_str = clean_term["endDate"][0]
-        term_end_date = datetime.datetime.strptime(term_end_str, '%Y-%m-%d')
-        if term_end_date > today_date:
-            curr_terms.append(clean_term)
-    return curr_terms
-
 def _clean_ldap_attrs(entry, objectClass):
     term_dict = entry.entry_attributes_as_dict
     collect_attrs = university_json["calendar"][objectClass]
@@ -40,6 +27,22 @@ def _clean_ldap_attrs(entry, objectClass):
     for key in collect_attrs:
         clean_attrs[key] = term_dict[key] if key in term_dict else None
     return clean_attrs
+
+def get_ongoing_terms():
+    logging.debug("Searching for active terms...")
+    ldap_conn.search(SEARCH_PREFIX, '(objectClass=uOfATerm)',
+                    attributes=ldap3.ALL_ATTRIBUTES, paged_size=50000)
+    terms = ldap_conn.entries
+    curr_terms = []
+    today_date = datetime.datetime.now()
+    for term in terms:
+        clean_term = _clean_ldap_attrs(term, "uOfATerm")
+        term_end_str = clean_term["endDate"][0]
+        term_end_date = datetime.datetime.strptime(term_end_str, '%Y-%m-%d')
+        if term_end_date < today_date or "Continuing" in clean_term["termTitle"][0]:
+            continue
+        curr_terms.append(clean_term)
+    return curr_terms
 
 def _create_table(sqlcursor, table_name, attrs):
     cols = ' text, '.join(attrs) + ' text'
@@ -53,7 +56,7 @@ def _write_entry(sqlcursor, table, attrs):
     sqlcursor.executemany(query, values)
 
 def make_local_db(term_code:str, term_db_path:str):
-    logging.debug(f"Creating local database for {term_code}")
+    logging.debug(f"Adding data for term {term_code}...")
     sqlconn = sqlite3.connect(term_db_path)
     sqlcursor = sqlconn.cursor()
     for objectClass in university_json["calendar"]:
@@ -65,7 +68,30 @@ def make_local_db(term_code:str, term_db_path:str):
             _write_entry(sqlcursor, objectClass, attrs)
     sqlconn.commit()
     sqlconn.close()
-    
+
+def searchUIDforName(id):
+    url = f"https://apps.ualberta.ca/directory/person/{id}"
+    soup = BeautifulSoup(requests.get(url).text, "lxml")
+    name = soup.find("h2", {"class": "card-title mb-2"}).text
+    removed_creds, *_ = name.partition(',')
+    return removed_creds
+
+def make_names_table(db_path):
+    logging.debug(f"Gathering instructorUid names...")
+    sqlconn = sqlite3.connect(db_path)
+    sqlcursor = sqlconn.cursor()
+    sqlcursor.execute("CREATE TABLE uOfANames (instructorUid text, Name text)")
+    sqlcursor.execute("SELECT instructorUid FROM uOfAClass WHERE instructorUid IS NOT NULL")
+    UIDs = set()
+    for entry in sqlcursor.fetchall():
+        for UID in list(entry):
+            if not UID in UIDs:
+                UIDs.add(UID)
+                name = searchUIDforName(UID)
+                sqlcursor.execute("INSERT INTO uOfANames VALUES (?, ?)", (UID, name))
+    sqlconn.commit()
+    sqlconn.close()
+
 def fetch_all(flush=False):
     if flush:
         shutil.rmtree("../local")
@@ -73,11 +99,16 @@ def fetch_all(flush=False):
     if not os.path.exists("../local"):
         os.mkdir("../local")
         logging.debug("Created local database directory.")
-    for ongoing_term in get_ongoing_terms():
-        term_code = str(ongoing_term["term"][0])
-        dirname = os.path.dirname(__file__)
-        term_db_path = os.path.join(dirname, "../local/"+term_code+".db")
-        if not os.path.exists(term_db_path):
+    dirname = os.path.dirname(__file__)
+    term_db_path = os.path.join(dirname, "../local/database.db")
+    if not os.path.exists(term_db_path):
+        '''
+        for ongoing_term in get_ongoing_terms():
+            term_code = str(ongoing_term["term"][0])
             make_local_db(term_code, term_db_path)
+        '''
+        term_code = "1750"
+        make_local_db(term_code, term_db_path)
+    #make_names_table(term_db_path)
 
 fetch_all(flush=True)
