@@ -13,7 +13,8 @@ ldap_conn = ldap3.Connection(server, auto_bind=True)
 
 def get_ongoing_terms():
     logging.debug("Searching for active terms...")
-    ldap_conn.search(SEARCH_PREFIX, '(objectClass=uOfATerm)', attributes=ldap3.ALL_ATTRIBUTES)
+    ldap_conn.search(SEARCH_PREFIX, '(objectClass=uOfATerm)',
+                    attributes=ldap3.ALL_ATTRIBUTES, paged_size=50000)
     terms = ldap_conn.entries
     curr_terms = []
     today_date = date_time_obj = datetime.datetime.now()
@@ -52,12 +53,15 @@ def _write_entry(sqlcursor, table, attrs):
     sqlcursor.executemany(query, values)
 
 def make_local_db(term_code:str, term_db_path:str):
+    logging.debug(f"Creating local database for {term_code}")
     sqlconn = sqlite3.connect(term_db_path)
     sqlcursor = sqlconn.cursor()
     prefix = f"term={term_code},{SEARCH_PREFIX}"
-    ldap_conn.search(prefix, '(objectClass=uOfACourse)', attributes=ldap3.ALL_ATTRIBUTES, paged_size=50000)
+    ldap_conn.search(prefix, '(objectClass=uOfACourse)',
+                    attributes=ldap3.ALL_ATTRIBUTES, paged_size=50000)
     uOfACourses = ldap_conn.entries
-    _create_table(sqlcursor, "uOfACourse", university_json["calendar"]["uOfACourse"])
+    calendar = university_json["calendar"]
+    [_create_table(sqlcursor, obj, calendar[obj]) for obj in calendar.keys()]
     for uOfACourse in uOfACourses:
         attrs = _clean_ldap_attrs(uOfACourse, "uOfACourse")
         _write_entry(sqlcursor, "uOfACourse", attrs)
