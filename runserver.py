@@ -9,9 +9,28 @@ app.config["DEBUG"] = True
 
 qe = query.QueryExecutor()
 
-@app.route('/api/v1/terms', methods=['GET'])
+# /api/v1/terms
+@app.route("/api/v1/terms", methods=['GET'])
 def api_terms():
     return jsonify(qe.get_terms())
+
+# /api/v1/courses/?term=1770
+@app.route("/api/v1/courses/", methods=['GET'])
+def api_courses():
+    args = request.args
+    if "term" not in args:
+        return
+    term_id = int(args["term"])
+    return jsonify(qe.get_term_courses(term_id))
+
+# /api/v1/classes/?term=1770&course=096650
+@app.route("/api/v1/classes/", methods=['GET'])
+def api_classes():
+    args = request.args
+    if "term" not in args or "course" not in args:
+        return
+    term_id, course_id = int(args["term"]), args["course"]
+    return jsonify(qe.get_course_classes(term_id, course_id))
 
 '''
 # /api/v1/gen-schedules?query={"courses":["CMPUT 174", "MATH 117", "MATH 127", "STAT 151", "WRS 101"],"term":"Fall_21"}

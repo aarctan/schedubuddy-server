@@ -13,9 +13,9 @@ class QueryExecutor:
         self._uni_json = json.load(university_json_f)
         university_json_f.close()
     
-    def get_terms(self) -> list:
-        query = f"SELECT * FROM uOfATerm"
-        self._cursor.execute(query)
+    def get_terms(self):
+        term_query = f"SELECT * FROM uOfATerm"
+        self._cursor.execute(term_query)
         terms = self._cursor.fetchall()
         json_res = []
         for term in terms:
@@ -24,9 +24,51 @@ class QueryExecutor:
                 json_term[self._uni_json["calendar"]["uOfATerm"][k]] = attr
             json_res.append(json_term)
         return {"objects":json_res}
+    
+    def get_term_courses(self, term:int):
+        course_query = f"SELECT * FROM uOfACourse WHERE term=?"
+        self._cursor.execute(course_query, (str(term),))
+        course_rows = self._cursor.fetchall()
+        json_res = []
+        for course_row in course_rows:
+            json_course = {}
+            for k, attr in enumerate(course_row):
+                json_course[self._uni_json["calendar"]["uOfACourse"][k]] = attr
+            json_res.append(json_course)
+        return {"objects":json_res}
+    
+    def _get_classtimes(self, term:int, course:str, c_class:str):
+        classtime_query = f"SELECT * FROM uOfAClassTime WHERE term=? AND course=? AND class=?"
+        self._cursor.execute(classtime_query, (str(term), course, c_class))
+        classtime_rows = self._cursor.fetchall()
+        json_res = []
+        for classtime_row in classtime_rows:
+            json_classtime = {}
+            for k, attr in enumerate(classtime_row):
+                key = self._uni_json["calendar"]["uOfAClassTime"][k]
+                if key not in ("term", "course", "class"):
+                    json_classtime[key] = attr
+            json_res.append(json_classtime)
+        return json_res
+    
+    def get_course_classes(self, term:int, course:str):
+        class_query = f"SELECT * FROM uOfAClass WHERE term=? AND course=?"
+        self._cursor.execute(class_query, (str(term), course))
+        class_rows = self._cursor.fetchall()
+        json_res = []
+        for class_row in class_rows:
+            json_class = {}
+            for k, attr in enumerate(class_row):
+                key = self._uni_json["calendar"]["uOfAClass"][k]
+                if key not in ("term", "course"):
+                    json_class[key] = attr
+            json_class["classtimes"] = self._get_classtimes(term, course, json_class["class"])
+            json_res.append(json_class)
+        return {"objects":json_res}
+
 
 qe = QueryExecutor()
-#print(qe.get_terms())
+print(qe.get_course_classes(1770, "000001"))
 
 
 
