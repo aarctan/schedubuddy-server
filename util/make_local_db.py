@@ -12,7 +12,9 @@ from bs4 import BeautifulSoup
 # Set logging level to at least INFO to disable debug messages.
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
-university_json_f = open("uAlberta.json")
+dirname = os.path.dirname(__file__)
+uni_format_path = os.path.join(dirname, "../formats/uAlberta.json")
+university_json_f = open(uni_format_path)
 university_json = json.load(university_json_f)
 university_json_f.close()
 
@@ -102,13 +104,9 @@ def fetch_all(flush=False):
     dirname = os.path.dirname(__file__)
     term_db_path = os.path.join(dirname, "../local/database.db")
     if not os.path.exists(term_db_path):
-        '''
         for ongoing_term in get_ongoing_terms():
             term_code = str(ongoing_term["term"][0])
             make_local_db(term_code, term_db_path)
-        '''
-        term_code = "1750"
-        make_local_db(term_code, term_db_path)
     #make_names_table(term_db_path)
 
 fetch_all(flush=True)
