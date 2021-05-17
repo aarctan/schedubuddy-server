@@ -56,15 +56,13 @@ def make_local_db(term_code:str, term_db_path:str):
     logging.debug(f"Creating local database for {term_code}")
     sqlconn = sqlite3.connect(term_db_path)
     sqlcursor = sqlconn.cursor()
-    prefix = f"term={term_code},{SEARCH_PREFIX}"
-    ldap_conn.search(prefix, '(objectClass=uOfACourse)',
+    for objectClass in university_json["calendar"]:
+        _create_table(sqlcursor, objectClass, university_json["calendar"][objectClass])
+        ldap_conn.search(f"term={term_code},{SEARCH_PREFIX}", f"(objectClass={objectClass})",
                     attributes=ldap3.ALL_ATTRIBUTES, paged_size=50000)
-    uOfACourses = ldap_conn.entries
-    calendar = university_json["calendar"]
-    [_create_table(sqlcursor, obj, calendar[obj]) for obj in calendar.keys()]
-    for uOfACourse in uOfACourses:
-        attrs = _clean_ldap_attrs(uOfACourse, "uOfACourse")
-        _write_entry(sqlcursor, "uOfACourse", attrs)
+        for object in ldap_conn.entries:
+            attrs = _clean_ldap_attrs(object, objectClass)
+            _write_entry(sqlcursor, objectClass, attrs)
     sqlconn.commit()
     sqlconn.close()
     
