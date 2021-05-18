@@ -94,19 +94,15 @@ def make_names_table(db_path):
     sqlconn.commit()
     sqlconn.close()
 
-def fetch_all(flush=False):
-    if flush:
-        shutil.rmtree("../local")
-        logging.warning("All local databases were flushed.")
-    if not os.path.exists("../local"):
-        os.mkdir("../local")
-        logging.debug("Created local database directory.")
-    dirname = os.path.dirname(__file__)
+def fetch_all(flush=True):
+    try:
+        os.mkdir("local")
+    except:
+        pass
+    logging.debug("Created local database directory.")
     term_db_path = os.path.join(dirname, "../local/database.db")
     if not os.path.exists(term_db_path):
         for ongoing_term in get_ongoing_terms():
             term_code = str(ongoing_term["term"][0])
             make_local_db(term_code, term_db_path)
     #make_names_table(term_db_path)
-
-fetch_all(flush=True)

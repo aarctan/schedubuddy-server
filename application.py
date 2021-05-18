@@ -1,5 +1,9 @@
 import flask
 from flask import request, jsonify
+import json
+
+from util import make_local_db
+make_local_db.fetch_all(flush=True)
 
 from query import query
 from scheduler import sched_gen
@@ -9,6 +13,10 @@ sf = sched_gen.ScheduleFactory()
 
 application = flask.Flask(__name__)
 application.config["DEBUG"] = True
+
+@application.route('/', methods=['GET'])
+def api_root():
+    return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
 
 # /api/v1/terms
 @application.route("/api/v1/terms", methods=['GET'])
