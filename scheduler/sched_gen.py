@@ -1,5 +1,3 @@
-#from scheduler import query
-
 import pycosat
 import numpy as np
 from itertools import product
