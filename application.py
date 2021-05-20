@@ -2,12 +2,13 @@ import flask
 from flask import request, jsonify
 from flask_cors import CORS, cross_origin
 import json
+from io import BytesIO
 
 from util import make_local_db
-make_local_db.fetch_all(flush=True)
-
 from query import query
 from scheduler import sched_gen
+from draw import sched_draw
+import base64
 
 qe = query.QueryExecutor()
 sf = sched_gen.ScheduleFactory()
@@ -62,6 +63,14 @@ def api_gen_schedules():
         return
     term_id, course_id_list = int(args["term"]), args["courses"]
     return jsonify(qe.get_schedules(term_id, course_id_list, sf.generate_schedules))
+
+@application.route("/api/v1/image/", methods=['GET'])
+def api_image():
+    image = sched_draw.get_image()
+    bufferedio = BytesIO()
+    image.save(bufferedio, format="PNG")
+    base64str = base64.b64encode(bufferedio.getvalue()).decode()
+    return {"image": base64str}
 
 if __name__ == "__main__":
     application.run()

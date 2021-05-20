@@ -1,7 +1,8 @@
-Flask==1.1.2
-numpy==1.20.3
 pycosat==0.6.3
-Flask_Cors==3.0.10
 requests==2.25.1
+Flask_Cors==3.0.10
 ldap3==2.9
+numpy==1.20.3
+Flask==1.1.2
 beautifulsoup4==4.9.3
+Pillow==8.2.0
