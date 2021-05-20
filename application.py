@@ -1,5 +1,6 @@
 import flask
 from flask import request, jsonify
+from flask_cors import CORS, cross_origin
 import json
 
 from util import make_local_db
@@ -12,7 +13,10 @@ qe = query.QueryExecutor()
 sf = sched_gen.ScheduleFactory()
 
 application = flask.Flask(__name__)
+cors = CORS(application)
+application.config["CORS_HEADERS"] = 'Content-Type'
 application.config["DEBUG"] = True
+
 
 @application.route('/', methods=['GET'])
 def api_root():
