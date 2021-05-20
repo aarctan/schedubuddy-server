@@ -55,14 +55,14 @@ def api_classes():
     term_id, course_id = int(args["term"]), args["course"]
     return jsonify(qe.get_course_classes(term_id, course_id))
 
-# api/v1/gen-schedules?term=1770&courses=[096650,006776,097174,010807,096909]
+# /api/v1/gen-schedules?term=1770&courses=[096650,006776,097174,010807,096909]
 @application.route("/api/v1/gen-schedules/", methods=['GET'])
 def api_gen_schedules():
     args = request.args
     if "term" not in args or "courses" not in args:
         return
     term_id, course_id_list = int(args["term"]), args["courses"]
-    return jsonify(qe.get_schedules(term_id, course_id_list, sf.generate_schedules))
+    return jsonify(qe.get_schedules(term_id, course_id_list, sf, sched_draw))
 
 @application.route("/api/v1/image/", methods=['GET'])
 def api_image():

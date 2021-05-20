@@ -1,11 +1,13 @@
 import pycosat
 import numpy as np
-from itertools import product
-from random import choice, shuffle
+from itertools import product, combinations, islice
+import functools
+from random import choice, shuffle, sample, randint
+from joblib import Parallel, delayed
 
-EXHAUST_CARDINALITY_THRESHOLD = 500000
+EXHAUST_CARDINALITY_THRESHOLD = 350000
 ASSUMED_COMMUTE_TIME = 40
-IDEAL_CONSECUTIVE_LENGTH = 3.5*60
+IDEAL_CONSECUTIVE_LENGTH = 3.25*60
 
 def str_t_to_int(str_t):
     h = int(str_t[0:2])
@@ -232,7 +234,7 @@ class ScheduleFactory:
         for sched_obj in sched_objs:
             sched_obj.set_overall_rank()
         overall_sorted = sorted(sched_objs, key=lambda SO: SO.adjusted_score, reverse=True)
-        overall_sorted = overall_sorted[:min(100, num_pages)]
+        overall_sorted = overall_sorted[:min(50, num_pages)]
         #shuffle(overall_sorted)
         return overall_sorted
     
@@ -299,6 +301,21 @@ class ScheduleFactory:
             for class_b in flat_classes:
                 _ = self._conflicts(class_a, class_b)
 
+    def product(self, *sequences):
+        '''Breadth First Search Cartesian Product'''
+        # sequences = tuple(tuple(seq) for seqin sequences)
+        def partitions(n, k):
+            for c in combinations(range(n+k-1), k-1):
+                yield (b-a-1 for a, b in zip((-1,)+c, c+(n+k-1,)))
+        max_position = [len(i)-1 for i in sequences]
+        for i in range(sum(max_position)):
+            for positions in partitions(i, len(sequences)):
+                try:
+                    yield tuple(map(lambda seq, pos: seq[pos], sequences, positions))
+                except IndexError:
+                    continue
+        yield tuple(map(lambda seq, pos: seq[pos], sequences, max_position))
+
     # Generate valid schedules for a string list of courses. First construct a
     # a list of components, where a "component" is a set of classes where each
     # class contains information such as class time, id, location, etc, and share
@@ -311,6 +328,7 @@ class ScheduleFactory:
     def generate_schedules(self, courses_obj):
         courses_dict = self._create_course_dict(courses_obj)
         (components, aliases) = self._create_components(courses_dict)
+        self._build_conflicts_set(components)
         cnf = self._build_cnf(components)
         if pycosat.solve(cnf) == "UNSAT":
             return []
@@ -320,7 +338,6 @@ class ScheduleFactory:
         if cardinality <= EXHAUST_CARDINALITY_THRESHOLD:
             schedules = list(product(*components))
             valid_schedules = self._validate_schedules(schedules)
-            print(len(valid_schedules))
         else:
             sampled_schedules = []
             for _ in range(EXHAUST_CARDINALITY_THRESHOLD):
@@ -329,6 +346,7 @@ class ScheduleFactory:
                     sample_sched.append(choice(component))
                 sampled_schedules.append(sample_sched)
             valid_schedules = self._validate_schedules(sampled_schedules)
+            print(len(valid_schedules))
         sorted_schedules = self._master_sort(valid_schedules)
         return {"schedules":[[c[0] for c in s._schedule] for s in sorted_schedules], "aliases":aliases}
 

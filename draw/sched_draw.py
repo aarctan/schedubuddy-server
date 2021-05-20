@@ -27,15 +27,24 @@ import os
 dirname = os.path.dirname(__file__)
 tahoma_font_path = os.path.join(dirname, "./fonts/tahoma.ttf")
 boilerplate_path = os.path.join(dirname, "./boilerplate_full.png")
-print(tahoma_font_path)
 font = ImageFont.truetype(tahoma_font_path, 19)
 
-def get_draw_text(course_class, location=''):
-    course_name = course_class[5]
-    class_component = course_class[0]
-    class_section = course_class[1]
-    class_id = course_class[6]
-    instructor = course_class[3]
+def str_t_to_int(str_t):
+    h = int(str_t[0:2])
+    m = int(str_t[3:5])
+    pm = str_t[6:9] == 'PM'
+    if pm and h==12: return h*60+m
+    if pm and h<12: return (h+12)*60+m
+    if not pm and h==12: return m
+    if not pm and h<12: return h*60+m
+    return None
+
+def get_draw_text(course_obj):
+    course_name = course_obj["asString"]
+    class_component = course_obj["component"]
+    class_section = course_obj["section"]
+    class_id = course_obj["course"]
+    instructor = course_obj["instructorUid"]
     instructor_text = ''
     if instructor:
         instructor_full = instructor.split()
@@ -50,7 +59,7 @@ def get_draw_text(course_class, location=''):
 
 #    write "ONLINE" if it's an online class
 #    location = course_class[7] if course_class[7] else course_class[2]
-    location = location  if location else ''
+    location = course_obj["location"] if course_obj["location"] else ''
     text = course_name + '\n' + class_component + ' ' + class_section +\
         ' (' + class_id + ')\n' + location + '\n' + instructor_text
     return text.upper()
@@ -63,14 +72,16 @@ def draw_schedule(sched):
     class_on_weekend = False
     course_itr = 0
     curr_course = None
-    for course_class in sched:
-        course_id = course_class[5]
+    for course_obj in sched:
+        course_obj = course_obj["objects"]
+        course_id = course_obj["course"]
         if course_id != curr_course:
             color = color_scheme[course_itr%len(color_scheme)]
             curr_course = course_id
             course_itr += 1
-        for classtime in course_class[4]:
-            start_t, end_t, days, location = classtime
+        for ct in course_obj["classtimes"]:
+            start_t, end_t, days, location = ct["startTime"], ct["endTime"], ct["day"], course_obj["location"]
+            start_t, end_t = str_t_to_int(start_t), str_t_to_int(end_t)
             max_y = max(max_y, end_t)
             min_y = min(min_y, start_t)
             if end_t == -1: # Asynchronous classes
@@ -89,8 +100,8 @@ def draw_schedule(sched):
 
                 draw.rectangle([(r_x0-2, r_y0-2), (r_x1+2, r_y1+2)], fill=(0,0,0))
                 draw.rectangle([(r_x0, r_y0), (r_x1, r_y1)], fill = color)
-                location = location if location else course_class[2]
-                draw.text((r_x0+4, r_y0+2), get_draw_text(course_class, location=location), (0,0,0), font=font)
+                location = location if location else course_obj[2]
+                draw.text((r_x0+4, r_y0+2), get_draw_text(course_obj), (0,0,0), font=font)
 
     # get the y region
     boilerplate_width, boilerplate_height = image.size
@@ -113,30 +124,10 @@ def draw_schedule(sched):
         x_region = image.crop((x_region_left, 0, x_region_right, y_crop_line))
         image.paste(x_region, (left_margin_offset, 0, left_margin_offset+x_region_length, y_crop_line))
         image = image.crop((0, 0, left_margin_offset + x_region_length, y_crop_line))
-    #image.save("schedule.png")
+
+    basewidth = round(image.size[0]*float(0.75))
+    wpercent = (basewidth/float(image.size[0]))
+    hsize = int((float(image.size[1])*float(wpercent)))
+    image = image.resize((basewidth, hsize), Image.ANTIALIAS)
+    image.save("schedule.png")
     return image
-
-'''
-from sched_gen import generate_schedules
-(s, a) = generate_schedules(["CMPUT 174", "MATH 117", "MATH 127", "STAT 151", "WRS 101"])
-import time
-for i in range(len(s)-1):
-    draw_schedule(s[i])
-    time.sleep(1)
-'''
-
-
-'''
-s = (['LEC', 'X01', 'MAIN', None, [\
-    (480, 480+90, 'M', 'HC 2-12'),\
-    (480+90, 480+90+90, 'M', 'HC 2-12'),\
-    (480, 480+170, 'W', 'HC 2-12'),\
-    (480, 480+110, 'F', 'HC 2-12')], 'JAPAN 101', '51778'],)
-
-print(s)
-draw_schedule(s)
-'''
-def get_image():
-    s = [['LEC', 'A1', 'MAIN', None, [(540, 650, 'F', None), (540, 650, 'W', None)], 'CMPUT 401', '56366'], ['SEM', 'F1', 'MAIN', None, [(1020, 1260, 'F', None), (540, 590, 'M', None)], 'CMPUT 401', '56367'], ['LAB', 'D01', 'MAIN', None, [(540, 960, 'US', None)], 'CMPUT 401', '56368']]
-    img = draw_schedule(s)
-    return img
