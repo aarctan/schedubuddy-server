@@ -57,6 +57,7 @@
             "term",
             "course",
             "class",
+            "location",
             "startDate",
             "endDate",
             "day",

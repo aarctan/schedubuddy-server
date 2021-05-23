@@ -13,7 +13,7 @@ TURQUOISE = (153,255,204)
 ORANGE = (255,204,153)
 DARKBLUE = (153,153,255)
 CYAN = (204,255,255)
-HOUR_PADDING = 1
+HOUR_PADDING = 0
 
 left_margin_offset = 148
 top_margin_offset = 90
@@ -39,12 +39,12 @@ def str_t_to_int(str_t):
     if not pm and h<12: return h*60+m
     return None
 
-def get_draw_text(course_obj):
+def get_draw_text(course_obj, location=None):
     course_name = course_obj["asString"]
     class_component = course_obj["component"]
     class_section = course_obj["section"]
     class_id = course_obj["course"]
-    instructor = course_obj["instructorUid"]
+    instructor = course_obj["instructorName"]
     instructor_text = ''
     if instructor:
         instructor_full = instructor.split()
@@ -58,8 +58,7 @@ def get_draw_text(course_obj):
             instructor_text += '...'
 
 #    write "ONLINE" if it's an online class
-#    location = course_class[7] if course_class[7] else course_class[2]
-    location = course_obj["location"] if course_obj["location"] else ''
+    location = location if location else course_obj["location"]
     text = course_name + '\n' + class_component + ' ' + class_section +\
         ' (' + class_id + ')\n' + location + '\n' + instructor_text
     return text.upper()
@@ -101,7 +100,7 @@ def draw_schedule(sched):
                 draw.rectangle([(r_x0-2, r_y0-2), (r_x1+2, r_y1+2)], fill=(0,0,0))
                 draw.rectangle([(r_x0, r_y0), (r_x1, r_y1)], fill = color)
                 location = location if location else course_obj[2]
-                draw.text((r_x0+4, r_y0+2), get_draw_text(course_obj), (0,0,0), font=font)
+                draw.text((r_x0+4, r_y0+2), get_draw_text(course_obj, ct["location"]), (0,0,0), font=font)
 
     # get the y region
     boilerplate_width, boilerplate_height = image.size
@@ -125,9 +124,16 @@ def draw_schedule(sched):
         image.paste(x_region, (left_margin_offset, 0, left_margin_offset+x_region_length, y_crop_line))
         image = image.crop((0, 0, left_margin_offset + x_region_length, y_crop_line))
 
-    basewidth = round(image.size[0]*float(0.75))
+    '''
+    basewidth = round(image.size[0]*float(1))
     wpercent = (basewidth/float(image.size[0]))
     hsize = int((float(image.size[1])*float(wpercent)))
     image = image.resize((basewidth, hsize), Image.ANTIALIAS)
     image.save("schedule.png")
+    '''
     return image
+
+def get_image():
+    img_path = os.path.join(dirname, "../schedule.png")
+    img = Image.open(img_path)
+    return img

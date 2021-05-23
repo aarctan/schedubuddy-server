@@ -74,15 +74,20 @@ def make_local_db(term_code:str, term_db_path:str):
 def searchUIDforName(id):
     url = f"https://apps.ualberta.ca/directory/person/{id}"
     soup = BeautifulSoup(requests.get(url).text, "lxml")
-    name = soup.find("h2", {"class": "card-title mb-2"}).text
-    removed_creds, *_ = name.partition(',')
-    return removed_creds
+    name = str(id)
+    try:
+        name = soup.find("h2", {"class": "card-title mb-2"}).text
+        name, *_ = name.partition(',')
+    except:
+        name = str(id)
+        print(f"Name not found for UID: {id}")
+    return name
 
 def make_names_table(db_path):
     logging.debug(f"Gathering instructorUid names...")
     sqlconn = sqlite3.connect(db_path)
     sqlcursor = sqlconn.cursor()
-    sqlcursor.execute("CREATE TABLE uOfANames (instructorUid text, Name text)")
+    sqlcursor.execute("CREATE TABLE IF NOT EXISTS uOfANames (instructorUid text, Name text)")
     sqlcursor.execute("SELECT instructorUid FROM uOfAClass WHERE instructorUid IS NOT NULL")
     UIDs = set()
     for entry in sqlcursor.fetchall():
@@ -105,4 +110,5 @@ def fetch_all(flush=True):
         for ongoing_term in get_ongoing_terms():
             term_code = str(ongoing_term["term"][0])
             make_local_db(term_code, term_db_path)
-    #make_names_table(term_db_path)
+    make_names_table(term_db_path)
+

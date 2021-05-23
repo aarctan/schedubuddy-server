@@ -7,7 +7,7 @@ from joblib import Parallel, delayed
 
 EXHAUST_CARDINALITY_THRESHOLD = 350000
 ASSUMED_COMMUTE_TIME = 40
-IDEAL_CONSECUTIVE_LENGTH = 3.25*60
+IDEAL_CONSECUTIVE_LENGTH = 3*60
 
 def str_t_to_int(str_t):
     h = int(str_t[0:2])
@@ -215,7 +215,7 @@ class ScheduleFactory:
                 i += 1
         return day_times_map
 
-    def _master_sort(self, schedules):
+    def _master_sort(self, schedules, limit):
         sched_objs = []
         num_pages = len(schedules)
         for schedule in schedules:
@@ -234,8 +234,8 @@ class ScheduleFactory:
         for sched_obj in sched_objs:
             sched_obj.set_overall_rank()
         overall_sorted = sorted(sched_objs, key=lambda SO: SO.adjusted_score, reverse=True)
-        overall_sorted = overall_sorted[:min(50, num_pages)]
-        #shuffle(overall_sorted)
+        overall_sorted = overall_sorted[:min(limit, num_pages)]
+        shuffle(overall_sorted)
         return overall_sorted
     
     # param course_list is a list of strings of form "SUBJ CATALOG" e.g. "CHEM 101".
@@ -325,7 +325,7 @@ class ScheduleFactory:
     # attempt to validate all schedules. If the size exceeds the threshold,
     # randomly sample from every axis (component) and gather a subset of all
     # possibly valid schedules of size T.
-    def generate_schedules(self, courses_obj):
+    def generate_schedules(self, courses_obj, limit:int):
         courses_dict = self._create_course_dict(courses_obj)
         (components, aliases) = self._create_components(courses_dict)
         self._build_conflicts_set(components)
@@ -346,22 +346,6 @@ class ScheduleFactory:
                     sample_sched.append(choice(component))
                 sampled_schedules.append(sample_sched)
             valid_schedules = self._validate_schedules(sampled_schedules)
-            print(len(valid_schedules))
-        sorted_schedules = self._master_sort(valid_schedules)
+        sorted_schedules = self._master_sort(valid_schedules, limit)
         return {"schedules":[[c[0] for c in s._schedule] for s in sorted_schedules], "aliases":aliases}
-
-#sf = ScheduleFactory()
-#(s, a) = sf.generate_schedules(["CMPUT 174", "MATH 117", "MATH 127", "STAT 151", "WRS 101"])
-#(s, a) = sf.generate_schedules("1770", ["096650","006776","097174","010807","096909"])
-
-'''
-(s, a) = schedules = generate_schedules(["CMPUT 174", "MATH 117", "MATH 127", "STAT 151", "WRS 101"])
-(s, a) = schedules = generate_schedules(["CHEM 101"])
-sched = s[0]._schedule
-
-print(course_sched)
-
-#S = (['LAB', 'D26', 'MAIN', None, [(1020, 1190, 'R', None)], 'CMPUT 174', '45438'], ['LEC', 'A6', 'MAIN', None, [(930, 1010, 'TR', None)], 'CMPUT 174', '47558'], ['LEC', 'SA1', 'MAIN', None, [(780, 830, 'R', 'CCIS L1-140'), (600, 650, 'MWF', 'CCIS L1-140')], 'MATH 117', '44640'], ['LEC', 'A1', 'MAIN', None, [(780, 830, 'T', None), (540, 590, 'MWF', 'CAB 235')], 'MATH 127', '53158'], ['LEC', '802', 'ONLINE', None, [(1020, 1200, 'T', None)], 'STAT 151', '45634'], ['SEM', 'A4', 'MAIN', None, [(840, 920, 'TR', 'HC 2-34')], 'WRS 101', '52320'])
-#_closeness_evaluate(S)
-'''
 

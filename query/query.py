@@ -3,7 +3,10 @@ import os
 import json
 from io import BytesIO
 import base64
+import numpy as np
 from joblib import Parallel, delayed
+from cv2 import imread, imdecode, imencode
+import zlib
 
 def _imagify(json_sched, draw_schedule_fp):
         image = draw_schedule_fp(json_sched)
@@ -11,6 +14,16 @@ def _imagify(json_sched, draw_schedule_fp):
         image.save(bufferedio, format="PNG")
         base64str = base64.b64encode(bufferedio.getvalue()).decode()
         return base64str
+
+def image_to_base64(json_sched, draw_schedule_fp):
+    image = draw_schedule_fp(json_sched)
+    image_stream = BytesIO()
+    image.save(image_stream, format="PNG")
+    image_stream.seek(0)
+    file_bytes = np.asarray(bytearray(image_stream.read()), dtype=np.uint8)
+    img = imdecode(np.fromstring(file_bytes, np.uint8), 1)
+    string = base64.b64encode(imencode('.png', img)[1]).decode()
+    return string
 
 class QueryExecutor:
     def __init__(self):
@@ -73,9 +86,10 @@ class QueryExecutor:
             json_res.append(json_course)
         return {"objects":json_res}
 
-    def get_course_classes(self, term:int, course:str):
-        class_query = f"SELECT * FROM uOfAClass WHERE term=? AND course=?"
-        self._cursor.execute(class_query, (str(term), course))
+    def get_course_classes(self, term:int, course:str, include_online=False):
+        class_query = f"SELECT * FROM uOfAClass WHERE term=? AND course=?\
+            AND instructionMode!=? AND instructionMode!=?"
+        self._cursor.execute(class_query, (str(term), course, "Remote Delivery", "Internet"))
         class_rows = self._cursor.fetchall()
         json_res = []
         for class_row in class_rows:
@@ -96,16 +110,25 @@ class QueryExecutor:
             key = self._uni_json["calendar"]["uOfAClass"][k]
             json_res[key] = attr
         json_res["classtimes"] = self._get_classtimes(term, class_id)
+        json_res["instructorName"] = self._UID_to_name(json_res["instructorUid"])
         return {"objects":json_res}
     
-    def get_schedules(self, term:int, course_id_list:str, gen_sched, sched_draw):
+    def _UID_to_name(self, uid:str):
+        if not uid or uid=='':
+            return None
+        name_query = f"SELECT Name from uOfANames WHERE instructorUid=?"
+        self._cursor.execute(name_query, (str(uid),))
+        name = self._cursor.fetchone()
+        return name[0]
+    
+    def get_schedules(self, term:int, course_id_list:str, limit, gen_sched, sched_draw):
         # course_id_list is of form: "[######,######,...,######]"
         course_id_list = [str(c) for c in course_id_list[1:-1].split(',')]
         classes = []
         for course_id in course_id_list:
             course_classes = self.get_course_classes(term, course_id)
             classes.append(course_classes)
-        sched_obj = gen_sched.generate_schedules({"objects":classes})
+        sched_obj = gen_sched.generate_schedules({"objects":classes}, int(limit))
         schedules = sched_obj["schedules"]
         json_res = {}
         json_schedules = []
@@ -117,7 +140,7 @@ class QueryExecutor:
         json_res["schedules"] = json_schedules
         json_res["aliases"] = sched_obj["aliases"]
 
-        results = Parallel(n_jobs=8)(delayed(_imagify)(js, sched_draw.draw_schedule) for js in json_schedules)
+        results = Parallel(n_jobs=4)(delayed(_imagify)(js, sched_draw.draw_schedule) for js in json_schedules)
         json_res["images"] = results
         '''
         base64images = []

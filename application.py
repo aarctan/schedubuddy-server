@@ -1,6 +1,7 @@
 import flask
 from flask import request, jsonify
 from flask_cors import CORS, cross_origin
+from flask_compress import Compress
 import json
 from io import BytesIO
 
@@ -59,18 +60,14 @@ def api_classes():
 @application.route("/api/v1/gen-schedules/", methods=['GET'])
 def api_gen_schedules():
     args = request.args
-    if "term" not in args or "courses" not in args:
-        return
-    term_id, course_id_list = int(args["term"]), args["courses"]
-    return jsonify(qe.get_schedules(term_id, course_id_list, sf, sched_draw))
+    required_args = ("term", "courses", "limit")
+    for required_arg in required_args:
+        if required_arg not in args:
+            return
+    term_id, course_id_list, limit = int(args["term"]), args["courses"], args["limit"]
+    response = jsonify(qe.get_schedules(term_id, course_id_list, limit, sf, sched_draw))
+    return response
 
-@application.route("/api/v1/image/", methods=['GET'])
-def api_image():
-    image = sched_draw.get_image()
-    bufferedio = BytesIO()
-    image.save(bufferedio, format="PNG")
-    base64str = base64.b64encode(bufferedio.getvalue()).decode()
-    return {"image": base64str}
-
+Compress(application)
 if __name__ == "__main__":
     application.run()
