@@ -5,8 +5,6 @@ from io import BytesIO
 import base64
 import numpy as np
 from joblib import Parallel, delayed
-from cv2 import imread, imdecode, imencode
-import zlib
 
 def _imagify(json_sched, draw_schedule_fp):
         image = draw_schedule_fp(json_sched)
@@ -14,16 +12,6 @@ def _imagify(json_sched, draw_schedule_fp):
         image.save(bufferedio, format="PNG")
         base64str = base64.b64encode(bufferedio.getvalue()).decode()
         return base64str
-
-def image_to_base64(json_sched, draw_schedule_fp):
-    image = draw_schedule_fp(json_sched)
-    image_stream = BytesIO()
-    image.save(image_stream, format="PNG")
-    image_stream.seek(0)
-    file_bytes = np.asarray(bytearray(image_stream.read()), dtype=np.uint8)
-    img = imdecode(np.fromstring(file_bytes, np.uint8), 1)
-    string = base64.b64encode(imencode('.png', img)[1]).decode()
-    return string
 
 class QueryExecutor:
     def __init__(self):
