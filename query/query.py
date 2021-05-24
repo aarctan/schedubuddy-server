@@ -104,7 +104,7 @@ class QueryExecutor:
                 for classtime in json_class["classtimes"]:
                     start_t = str_t_to_int(classtime["startTime"])
                     end_t = str_t_to_int(classtime["endTime"])
-                    if (end_t - start_t) >= 170:
+                    if 170 <= (end_t - start_t) <= 180:
                         has_evening_class = True
                 if has_evening_class:
                     continue
@@ -131,9 +131,21 @@ class QueryExecutor:
         name = self._cursor.fetchone()
         return name[0]
     
-    def get_schedules(self, term:int, course_id_list:str, prefs, gen_sched,sched_draw):
-        # course_id_list is of form: "[######,######,...,######]"
+    def get_schedules(self, term:int, course_id_list:str, prefs, gen_sched, sched_draw):
         course_id_list = [str(c) for c in course_id_list[1:-1].split(',')]
+        prefs_list = [str(p) for p in prefs[1:-1].split(',')]
+        start_time_pref = prefs_list[2]
+        if len(start_time_pref) == 7: # no trailing 0
+            start_time_pref = '0' + start_time_pref
+        print(start_time_pref)
+        prefs = {
+            "EVENING_CLASSES": True if int(prefs_list[0]) == 1 else False,
+            "ONLINE_CLASSES": True if int(prefs_list[1]) == 1 else False,
+            "IDEAL_START_TIME": str_t_to_int(start_time_pref)/60,
+            "IDEAL_CONSECUTIVE_LENGTH": int(prefs_list[3]),
+            "LIMIT": int(prefs_list[4])
+        }
+        print(prefs)
         classes = []
         for course_id in course_id_list:
             course_classes = self.get_course_classes(term, course_id, prefs)
