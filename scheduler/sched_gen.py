@@ -19,33 +19,50 @@ def str_t_to_int(str_t):
     if not pm and h<12: return h*60+m
     return None
 
+DEFAULT_PREFS = {"IDEAL_CONSECUTIVE_LENGTH": 3, "IDEAL_START_TIME": 10}
 
 class ValidSchedule:
-    def __init__(self, schedule, aliases, blocks, num_pages):
+    def __init__(self, schedule, aliases, blocks, num_pages, prefs=DEFAULT_PREFS):
         self._schedule = schedule
         self._aliases = aliases
         self._blocks = blocks
         self._num_pages = num_pages
-        self.gap_err = self.compute_gap_err()
         self.time_variance = self.compute_time_variance()
         self.time_wasted = self.compute_time_wasted()
-        self.gap_err_rank = None
-        self.time_var_rank = None
+        self.gap_err = self.compute_gap_err(prefs["IDEAL_CONSECUTIVE_LENGTH"])
+        self.start_err = self.compute_start_err(prefs["IDEAL_START_TIME"])
         self.time_wasted_rank = None
+        self.time_var_rank = None
+        self.gap_err_rank = None
+        self.start_err_rank = None
+
         self.overall_rank = None
         self.score = None
 
-    def compute_gap_err(self):
+    def compute_gap_err(self, ideal):
+        ideal = ideal*60
         GVE = 0
         for day_blocks in self._blocks.values():
             for block in day_blocks:
                 block_len = block[1] - block[0]
-                if block_len <= IDEAL_CONSECUTIVE_LENGTH:
-                    GVE += (IDEAL_CONSECUTIVE_LENGTH - block_len)**2
+                if block_len <= ideal:
+                    GVE += (ideal - block_len)**2
                 else:
                     # greatly discourage very long marathons
-                    GVE += (block_len - IDEAL_CONSECUTIVE_LENGTH)**3
+                    GVE += (block_len - ideal)**3
         return GVE
+    
+    def compute_start_err(self, ideal):
+        ideal = ideal*60
+        error = 0
+        for day in self._blocks.keys():
+            day_start_t = self._blocks[day][0][0]
+            if day_start_t < ideal:
+                # discourage very early starts
+                error += ((ideal - day_start_t) ** 3)
+            else:
+                error += (self._blocks[day][0][0] - ideal) ** 2
+        return error / (len(self._blocks.keys()))
     
     def compute_time_variance(self):
         start_times, end_times = [], []
@@ -79,10 +96,11 @@ class ValidSchedule:
 
         adjusted_combined_rank =\
             self.time_wasted_rank*1 +\
+            self.time_var_rank*1 +\
             self.gap_err_rank*1 +\
-            self.time_var_rank*1
-        self.adjusted_score = round(((adjusted_combined_rank /
-            (self._num_pages*3)) * 5), 2)
+            self.start_err_rank*1
+        self.adjusted_score = adjusted_combined_rank
+        #self.adjusted_score = round(((adjusted_combined_rank / (self._num_pages*1)) * 5), 2)
     
     def get_schedule(self):
         return self._schedule
@@ -222,20 +240,23 @@ class ScheduleFactory:
             blocks = self._get_schedule_blocks(schedule)
             sched_obj = ValidSchedule(schedule, [], blocks, num_pages)
             sched_objs.append(sched_obj)
-        gap_err_sorted = sorted(sched_objs, key=lambda SO: SO.gap_err, reverse=True)
         time_var_sorted = sorted(sched_objs, key=lambda SO: SO.time_variance, reverse=True)
         time_waste_sorted = sorted(sched_objs, key=lambda SO: SO.time_wasted, reverse=True)
+        gap_err_sorted = sorted(sched_objs, key=lambda SO: SO.gap_err, reverse=True)
+        start_err_sorted = sorted(sched_objs, key=lambda SO: SO.start_err, reverse=True)
         for i, sched_obj in enumerate(gap_err_sorted):
             sched_obj.gap_err_rank = i+1
         for i, sched_obj in enumerate(time_var_sorted):
             sched_obj.time_var_rank = i+1
         for i, sched_obj in enumerate(time_waste_sorted):
             sched_obj.time_wasted_rank = i+1
+        for i, sched_obj in enumerate(start_err_sorted):
+            sched_obj.start_err_rank = i+1
         for sched_obj in sched_objs:
             sched_obj.set_overall_rank()
         overall_sorted = sorted(sched_objs, key=lambda SO: SO.adjusted_score, reverse=True)
         overall_sorted = overall_sorted[:min(limit, num_pages)]
-        shuffle(overall_sorted)
+        #shuffle(overall_sorted)
         return overall_sorted
     
     # param course_list is a list of strings of form "SUBJ CATALOG" e.g. "CHEM 101".
