@@ -12,13 +12,22 @@ import base64
 
 qe = query.QueryExecutor()
 sf = sched_gen.ScheduleFactory()
-# /api/v1/gen-schedules?term=1770&courses=[096650,006776,097174,010807,096909]
+
+prefs = {
+    "EVENING_CLASSES": False,
+    "ONLINE_CLASSES": False,
+    "IDEAL_START_TIME": 10,
+    "IDEAL_CONSECUTIVE_LENGTH": 2,
+    "LIMIT": 10
+}
 
 # cmput 174, math 117, math 127, stat 151, wrs 101
 #query = qe.get_schedules(1770, "[096650,006776,097174,010807,096909]", 100, sf, sched_draw)
 
 # cmput 174, psyco 104, math 134, stat 151, engl 103
-query = qe.get_schedules(1770, "[096650,009595,106431,010807,106383]", 100, sf, sched_draw)
+#query = qe.get_schedules(1770, "[096650,009595,106431,010807,106383]", prefs, sf, sched_draw)
+
+query = qe.get_schedules(1770, "[009595]", prefs, sf, sched_draw)
 
 schedules = query["objects"]["schedules"]
 

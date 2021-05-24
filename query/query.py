@@ -13,6 +13,16 @@ def _imagify(json_sched, draw_schedule_fp):
         base64str = base64.b64encode(bufferedio.getvalue()).decode()
         return base64str
 
+def str_t_to_int(str_t):
+    h = int(str_t[0:2])
+    m = int(str_t[3:5])
+    pm = str_t[6:9] == 'PM'
+    if pm and h==12: return h*60+m
+    if pm and h<12: return (h+12)*60+m
+    if not pm and h==12: return m
+    if not pm and h<12: return h*60+m
+    return None
+
 class QueryExecutor:
     def __init__(self):
         dirname = os.path.dirname(__file__)
@@ -74,10 +84,13 @@ class QueryExecutor:
             json_res.append(json_course)
         return {"objects":json_res}
 
-    def get_course_classes(self, term:int, course:str, include_online=False):
-        class_query = f"SELECT * FROM uOfAClass WHERE term=? AND course=?\
-            AND instructionMode!=? AND instructionMode!=?"
-        self._cursor.execute(class_query, (str(term), course, "Remote Delivery", "Internet"))
+    def get_course_classes(self, term:int, course:str, prefs):
+        class_query = "SELECT * FROM uOfAClass WHERE term=? AND course=?"
+        if prefs["ONLINE_CLASSES"] == False:
+            class_query += " AND instructionMode!=? AND instructionMode!=?"
+            self._cursor.execute(class_query, (str(term), course, "Remote Delivery", "Internet"))
+        else:
+            self._cursor.execute(class_query, (str(term), course))
         class_rows = self._cursor.fetchall()
         json_res = []
         for class_row in class_rows:
@@ -86,6 +99,15 @@ class QueryExecutor:
                 key = self._uni_json["calendar"]["uOfAClass"][k]
                 json_class[key] = attr
             json_class["classtimes"] = self._get_classtimes(term, json_class["class"])
+            if prefs["EVENING_CLASSES"] == False and json_class["component"] == "LEC":
+                has_evening_class = False
+                for classtime in json_class["classtimes"]:
+                    start_t = str_t_to_int(classtime["startTime"])
+                    end_t = str_t_to_int(classtime["endTime"])
+                    if (end_t - start_t) >= 170:
+                        has_evening_class = True
+                if has_evening_class:
+                    continue
             json_res.append(json_class)
         return {"objects":json_res}
     
@@ -109,14 +131,14 @@ class QueryExecutor:
         name = self._cursor.fetchone()
         return name[0]
     
-    def get_schedules(self, term:int, course_id_list:str, limit, gen_sched, sched_draw):
+    def get_schedules(self, term:int, course_id_list:str, prefs, gen_sched,sched_draw):
         # course_id_list is of form: "[######,######,...,######]"
         course_id_list = [str(c) for c in course_id_list[1:-1].split(',')]
         classes = []
         for course_id in course_id_list:
-            course_classes = self.get_course_classes(term, course_id)
+            course_classes = self.get_course_classes(term, course_id, prefs)
             classes.append(course_classes)
-        sched_obj = gen_sched.generate_schedules({"objects":classes}, int(limit))
+        sched_obj = gen_sched.generate_schedules({"objects":classes}, prefs)
         schedules = sched_obj["schedules"]
         json_res = {}
         json_schedules = []

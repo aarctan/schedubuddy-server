@@ -19,10 +19,16 @@ def str_t_to_int(str_t):
     if not pm and h<12: return h*60+m
     return None
 
-DEFAULT_PREFS = {"IDEAL_CONSECUTIVE_LENGTH": 3, "IDEAL_START_TIME": 10}
+DEFAULT_PREFS = {
+    "EVENING_CLASSES": True,
+    "ONLINE_CLASSES": True,
+    "IDEAL_START_TIME": 10,
+    "IDEAL_CONSECUTIVE_LENGTH": 3,
+    "LIMIT": 30
+}
 
 class ValidSchedule:
-    def __init__(self, schedule, aliases, blocks, num_pages, prefs=DEFAULT_PREFS):
+    def __init__(self, schedule, aliases, blocks, num_pages, prefs):
         self._schedule = schedule
         self._aliases = aliases
         self._blocks = blocks
@@ -233,12 +239,12 @@ class ScheduleFactory:
                 i += 1
         return day_times_map
 
-    def _master_sort(self, schedules, limit):
+    def _master_sort(self, schedules, prefs):
         sched_objs = []
         num_pages = len(schedules)
         for schedule in schedules:
             blocks = self._get_schedule_blocks(schedule)
-            sched_obj = ValidSchedule(schedule, [], blocks, num_pages)
+            sched_obj = ValidSchedule(schedule, [], blocks, num_pages, prefs)
             sched_objs.append(sched_obj)
         time_var_sorted = sorted(sched_objs, key=lambda SO: SO.time_variance, reverse=True)
         time_waste_sorted = sorted(sched_objs, key=lambda SO: SO.time_wasted, reverse=True)
@@ -255,7 +261,7 @@ class ScheduleFactory:
         for sched_obj in sched_objs:
             sched_obj.set_overall_rank()
         overall_sorted = sorted(sched_objs, key=lambda SO: SO.adjusted_score, reverse=True)
-        overall_sorted = overall_sorted[:min(limit, num_pages)]
+        overall_sorted = overall_sorted[:min(prefs["LIMIT"], num_pages)]
         #shuffle(overall_sorted)
         return overall_sorted
     
@@ -346,7 +352,7 @@ class ScheduleFactory:
     # attempt to validate all schedules. If the size exceeds the threshold,
     # randomly sample from every axis (component) and gather a subset of all
     # possibly valid schedules of size T.
-    def generate_schedules(self, courses_obj, limit:int):
+    def generate_schedules(self, courses_obj, prefs=DEFAULT_PREFS):
         courses_dict = self._create_course_dict(courses_obj)
         (components, aliases) = self._create_components(courses_dict)
         self._build_conflicts_set(components)
@@ -367,6 +373,6 @@ class ScheduleFactory:
                     sample_sched.append(choice(component))
                 sampled_schedules.append(sample_sched)
             valid_schedules = self._validate_schedules(sampled_schedules)
-        sorted_schedules = self._master_sort(valid_schedules, limit)
+        sorted_schedules = self._master_sort(valid_schedules, prefs)
         return {"schedules":[[c[0] for c in s._schedule] for s in sorted_schedules], "aliases":aliases}
 
