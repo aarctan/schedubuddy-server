@@ -72,7 +72,21 @@ class QueryExecutor:
                 json_course[self._uni_json["calendar"]["uOfACourse"][k]] = attr
             json_res.append(json_course)
         return {"objects":json_res}
-
+    
+    # Need to check if the preferences still allow of the generation of schedules
+    # containing a class from each possible component (e.g. LEC, SEM).
+    def filter_check(self, term:int, course:str, filtered_rows):
+        class_query = "SELECT * FROM uOfAClass WHERE term=? AND course=?"
+        self._cursor.execute(class_query, (str(term), course))
+        all_class_rows = self._cursor.fetchall()
+        possible_components = set()
+        filtered_components = set()
+        for class_row in all_class_rows:
+            possible_components.add(class_row[3])
+        for class_row in filtered_rows:
+            filtered_components.add(class_row[3])
+        return len(possible_components) == len(filtered_components)
+        
     def get_course_classes(self, term:int, course:str, prefs):
         class_query = "SELECT * FROM uOfAClass WHERE term=? AND course=?"
         if prefs["ONLINE_CLASSES"] == False:
@@ -81,6 +95,9 @@ class QueryExecutor:
         else:
             self._cursor.execute(class_query, (str(term), course))
         class_rows = self._cursor.fetchall()
+        valid_filters = self.filter_check(term, course, class_rows)
+        if not valid_filters:
+            return {"objects":[]}
         json_res = []
         for class_row in class_rows:
             json_class = {}

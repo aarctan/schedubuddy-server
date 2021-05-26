@@ -107,6 +107,11 @@ def cleanup(db_path):
         (SELECT uOfACourse.course FROM uOfACourse LEFT JOIN uOfAClassTime\
         ON uOfACourse.course=uOfAClassTime.course AND uOfACourse.term=uOfAClassTime.term\
         WHERE uOfAClassTime.course IS NULL)")
+    sqlcursor.execute("DELETE FROM uOfAClass WHERE class IN\
+        (SELECT uOfAClass.class FROM uOfAClass LEFT JOIN uOfAClassTime\
+        ON uOfAClass.class=uOfAClassTime.class AND uOfAClass.term=uOfAClassTime.term\
+        AND uOfAClass.course=uOfAClassTime.course\
+        WHERE uOfAClassTime.class IS NULL)")
     sqlconn.commit()
     sqlconn.close()
 
