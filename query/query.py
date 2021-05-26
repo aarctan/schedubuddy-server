@@ -1,17 +1,6 @@
 import sqlite3
 import os
 import json
-from io import BytesIO
-import base64
-import numpy as np
-from joblib import Parallel, delayed
-
-def _imagify(json_sched, draw_schedule_fp):
-        image = draw_schedule_fp(json_sched)
-        bufferedio = BytesIO()
-        image.save(bufferedio, format="PNG")
-        base64str = base64.b64encode(bufferedio.getvalue()).decode()
-        return base64str
 
 def str_t_to_int(str_t):
     h = int(str_t[0:2])
@@ -137,7 +126,6 @@ class QueryExecutor:
         start_time_pref = prefs_list[2]
         if len(start_time_pref) == 7: # no trailing 0
             start_time_pref = '0' + start_time_pref
-        print(start_time_pref)
         prefs = {
             "EVENING_CLASSES": True if int(prefs_list[0]) == 1 else False,
             "ONLINE_CLASSES": True if int(prefs_list[1]) == 1 else False,
@@ -145,7 +133,6 @@ class QueryExecutor:
             "IDEAL_CONSECUTIVE_LENGTH": int(prefs_list[3]),
             "LIMIT": int(prefs_list[4])
         }
-        print(prefs)
         classes = []
         for course_id in course_id_list:
             course_classes = self.get_course_classes(term, course_id, prefs)
@@ -161,17 +148,4 @@ class QueryExecutor:
             json_schedules.append(json_sched)
         json_res["schedules"] = json_schedules
         json_res["aliases"] = sched_obj["aliases"]
-
-        results = Parallel(n_jobs=4)(delayed(_imagify)(js, sched_draw.draw_schedule) for js in json_schedules)
-        json_res["images"] = results
-        '''
-        base64images = []
-        for json_schedule in json_schedules:
-            image = sched_draw.draw_schedule(json_schedule)
-            bufferedio = BytesIO()
-            image.save(bufferedio, format="PNG")
-            base64str = base64.b64encode(bufferedio.getvalue()).decode()
-            base64images.append(base64str)
-        json_res["images"] = base64images'''
-
         return {"objects":json_res}
