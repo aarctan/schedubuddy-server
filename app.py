@@ -14,23 +14,23 @@ import base64
 qe = query.QueryExecutor()
 sf = sched_gen.ScheduleFactory()
 
-application = flask.Flask(__name__)
-cors = CORS(application)
-application.config["CORS_HEADERS"] = 'Content-Type'
-application.config["DEBUG"] = True
+app = flask.Flask(__name__)
+cors = CORS(app)
+app.config["CORS_HEADERS"] = 'Content-Type'
+app.config["DEBUG"] = True
 
 
-@application.route('/', methods=['GET'])
+@app.route('/', methods=['GET'])
 def api_root():
-    return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+    return json.dumps({'success':True}), 200, {'ContentType':'app/json'} 
 
 # /api/v1/terms
-@application.route("/api/v1/terms", methods=['GET'])
+@app.route("/api/v1/terms", methods=['GET'])
 def api_terms():
     return jsonify(qe.get_terms())
 
 # /api/v1/courses/?term=1770
-@application.route("/api/v1/courses/", methods=['GET'])
+@app.route("/api/v1/courses/", methods=['GET'])
 def api_courses():
     args = request.args
     if "term" not in args:
@@ -39,7 +39,7 @@ def api_courses():
     return jsonify(qe.get_term_courses(term_id))
 
 # /api/v1/departments/?term=1770&code=COMPUT SCI
-@application.route("/api/v1/departments/", methods=['GET'])
+@app.route("/api/v1/departments/", methods=['GET'])
 def api_departments():
     args = request.args
     if "term" not in args or "code" not in args:
@@ -48,7 +48,7 @@ def api_departments():
     return jsonify(qe.get_department_courses(term_id, department_id))
 
 # /api/v1/classes/?term=1770&course=096650
-@application.route("/api/v1/classes/", methods=['GET'])
+@app.route("/api/v1/classes/", methods=['GET'])
 def api_classes():
     args = request.args
     if "term" not in args or "course" not in args:
@@ -57,7 +57,7 @@ def api_classes():
     return jsonify(qe.get_course_classes(term_id, course_id))
 
 # /api/v1/gen-schedules?term=1770&courses=[096650,006776,097174,010807,096909]&prefs=[1,0,10,3,30]
-@application.route("/api/v1/gen-schedules/", methods=['GET'])
+@app.route("/api/v1/gen-schedules/", methods=['GET'])
 def api_gen_schedules():
     args = request.args
     required_args = ("term", "courses", "prefs")
@@ -68,6 +68,6 @@ def api_gen_schedules():
     response = jsonify(qe.get_schedules(term_id, course_id_list, prefs, sf, sched_draw))
     return response
 
-Compress(application)
+Compress(app)
 if __name__ == "__main__":
-    application.run()
+    app.run()
