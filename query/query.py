@@ -97,7 +97,7 @@ class QueryExecutor:
         class_rows = self._cursor.fetchall()
         valid_filters = self.filter_check(term, course, class_rows)
         if not valid_filters:
-            return {"objects":[]}
+            return None
         json_res = []
         for class_row in class_rows:
             json_class = {}
@@ -137,6 +137,12 @@ class QueryExecutor:
         name = self._cursor.fetchone()
         return name[0]
     
+    def get_course_name(self, term, course_id):
+        course_query = "SELECT asString from uOfACourse where term=? AND course=?"
+        self._cursor.execute(course_query, (str(term), str(course_id)))
+        course_name = self._cursor.fetchone()
+        return course_name[0]
+    
     def get_schedules(self, term:int, course_id_list:str, prefs, gen_sched, sched_draw):
         course_id_list = [str(c) for c in course_id_list[1:-1].split(',')]
         prefs_list = [str(p) for p in prefs[1:-1].split(',')]
@@ -153,8 +159,14 @@ class QueryExecutor:
         classes = []
         for course_id in course_id_list:
             course_classes = self.get_course_classes(term, course_id, prefs)
+            if not course_classes:
+                return {"objects": {"schedules":[], "aliases": [],
+                    "errmsg": f"No schedules to display: the provided settings\
+                    filtered out all classes for " + self.get_course_name(term, course_id)}}
             classes.append(course_classes)
         sched_obj = gen_sched.generate_schedules({"objects":classes}, prefs)
+        if "errmsg" in sched_obj:
+            return {"objects":sched_obj}
         schedules = sched_obj["schedules"]
         json_res = {}
         json_schedules = []

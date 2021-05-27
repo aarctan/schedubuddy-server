@@ -5,7 +5,7 @@ import functools
 from random import choice, shuffle, sample, randint
 from joblib import Parallel, delayed
 
-EXHAUST_CARDINALITY_THRESHOLD = 350000
+EXHAUST_CARDINALITY_THRESHOLD = 400000
 ASSUMED_COMMUTE_TIME = 40
 IDEAL_CONSECUTIVE_LENGTH = 3*60
 
@@ -262,7 +262,6 @@ class ScheduleFactory:
             sched_obj.set_overall_rank()
         overall_sorted = sorted(sched_objs, key=lambda SO: SO.adjusted_score, reverse=True)
         overall_sorted = overall_sorted[:min(prefs["LIMIT"], num_pages)]
-        #shuffle(overall_sorted)
         return overall_sorted
     
     # param course_list is a list of strings of form "SUBJ CATALOG" e.g. "CHEM 101".
@@ -369,7 +368,8 @@ class ScheduleFactory:
         self._build_conflicts_set(components)
         cnf = self._build_cnf(components)
         if pycosat.solve(cnf) == "UNSAT":
-            return []
+            return {"schedules":[], "aliases":[],
+                "errmsg": "No schedules to display: all schedules have time conflicts."}
         cardinality = self._cross_prod_cardinality(components)
         print("Cross product cardinality: " + str(cardinality))
         valid_schedules = []
@@ -380,5 +380,8 @@ class ScheduleFactory:
             sampled_schedules = self.unique_sample_from_prod(
                 components, cardinality, EXHAUST_CARDINALITY_THRESHOLD)
             valid_schedules = self._validate_schedules(sampled_schedules)
+            if len(valid_schedules) == 0:
+                return {"schedules":[], "aliases":[],
+                    "errmsg": "No schedules to display: retrying may yield some schedules."}
         sorted_schedules = self._master_sort(valid_schedules, prefs)
         return {"schedules":[[c[0] for c in s._schedule] for s in sorted_schedules], "aliases":aliases}
