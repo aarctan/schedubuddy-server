@@ -342,6 +342,17 @@ class ScheduleFactory:
                 except IndexError:
                     continue
         yield tuple(map(lambda seq, pos: seq[pos], sequences, max_position))
+    
+    def unique_sample_from_prod(self, domains, cardinality, n):
+        indices = sample(range(cardinality), n)
+        items = []
+        for idx in indices:
+            item = []
+            for domain in domains:
+                item.append(domain[idx % len(domain)])
+                idx = idx // len(domain)
+            items.append(item)
+        return items
 
     # Generate valid schedules for a string list of courses. First construct a
     # a list of components, where a "component" is a set of classes where each
@@ -366,13 +377,8 @@ class ScheduleFactory:
             schedules = list(product(*components))
             valid_schedules = self._validate_schedules(schedules)
         else:
-            sampled_schedules = []
-            for _ in range(EXHAUST_CARDINALITY_THRESHOLD):
-                sample_sched = []
-                for component in components:
-                    sample_sched.append(choice(component))
-                sampled_schedules.append(sample_sched)
+            sampled_schedules = self.unique_sample_from_prod(
+                components, cardinality, EXHAUST_CARDINALITY_THRESHOLD)
             valid_schedules = self._validate_schedules(sampled_schedules)
         sorted_schedules = self._master_sort(valid_schedules, prefs)
         return {"schedules":[[c[0] for c in s._schedule] for s in sorted_schedules], "aliases":aliases}
-
