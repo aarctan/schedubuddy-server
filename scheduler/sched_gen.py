@@ -5,7 +5,7 @@ import functools
 from random import choice, shuffle, sample, randint
 from joblib import Parallel, delayed
 
-EXHAUST_CARDINALITY_THRESHOLD = 250000
+EXHAUST_CARDINALITY_THRESHOLD = 175000
 ASSUMED_COMMUTE_TIME = 40
 IDEAL_CONSECUTIVE_LENGTH = 3*60
 
