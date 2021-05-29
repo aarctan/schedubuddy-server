@@ -164,6 +164,15 @@ class QueryExecutor:
                     "errmsg": f"No schedules to display: the provided settings\
                     filtered out all classes for " + self.get_course_name(term, course_id)}}
             classes.append(course_classes)
+        ##### Debugging
+        c_list = []
+        for course_id in course_id_list:
+            try:
+                c_list.append(self.get_course_name(term, course_id))
+            except:
+                pass
+        print(c_list)
+        #####
         sched_obj = gen_sched.generate_schedules({"objects":classes}, prefs)
         if "errmsg" in sched_obj:
             return {"objects":sched_obj}
