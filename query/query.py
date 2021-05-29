@@ -99,6 +99,7 @@ class QueryExecutor:
         if not valid_filters:
             return None
         json_res = []
+        all_classes_evening_and_filter = True
         for class_row in class_rows:
             json_class = {}
             for k, attr in enumerate(class_row):
@@ -112,9 +113,13 @@ class QueryExecutor:
                     end_t = str_t_to_int(classtime["endTime"])
                     if 170 <= (end_t - start_t) <= 180:
                         has_evening_class = True
+                    else:
+                        all_classes_evening_and_filter = False
                 if has_evening_class:
                     continue
             json_res.append(json_class)
+        if prefs["EVENING_CLASSES"] == False and all_classes_evening_and_filter:
+            return None
         return {"objects":json_res}
     
     def _get_class_obj(self, term:int, class_id:str):
