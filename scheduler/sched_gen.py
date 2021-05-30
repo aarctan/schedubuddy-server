@@ -288,10 +288,11 @@ class ScheduleFactory:
                     class_times = tuple(class_times)
                     if class_times in classtime_to_first_class:
                         first_class = classtime_to_first_class[class_times]
-                        component_aliases[first_class].append(class_comp_str)
+                        alias_info = [component_class[0], class_comp_str]
+                        component_aliases[first_class].append(alias_info)
                         aliases[first_class] = component_aliases[first_class]
                     else:
-                        first_class_key = component_class[0] + ' ' + class_comp_str
+                        first_class_key = component_class[0]
                         classtime_to_first_class[class_times] = first_class_key
                         component_aliases[first_class_key] = []
                         new_component.append(component_class)
