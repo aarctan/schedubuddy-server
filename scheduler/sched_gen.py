@@ -1,13 +1,25 @@
 import pycosat
 import numpy as np
-from itertools import product, combinations, islice
-import functools
-from random import choice, shuffle, sample, randint
-from joblib import Parallel, delayed
+from itertools import product
+from random import sample, randint
+from ortools.sat.python import cp_model
 
-EXHAUST_CARDINALITY_THRESHOLD = 175000
+EXHAUST_CARDINALITY_THRESHOLD = 200000
 ASSUMED_COMMUTE_TIME = 40
-IDEAL_CONSECUTIVE_LENGTH = 3*60
+
+class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):
+    """Print intermediate solutions."""
+
+    def __init__(self, variables):
+        cp_model.CpSolverSolutionCallback.__init__(self)
+        self.__variables = variables
+        self.__solution_count = 0
+
+    def on_solution_callback(self):
+        self.__solution_count += 1
+
+    def solution_count(self):
+        return self.__solution_count
 
 def str_t_to_int(str_t):
     h = int(str_t[0:2])
@@ -95,18 +107,12 @@ class ValidSchedule:
         return self.time_variance
 
     def set_overall_rank(self):
-        combined_rank = self.time_wasted_rank +\
-            self.gap_err_rank +\
-            self.time_var_rank
-        self.score = round(((combined_rank / (self._num_pages*3)) * 5), 2)
-
         adjusted_combined_rank =\
             self.time_wasted_rank*1 +\
             self.time_var_rank*1 +\
-            self.gap_err_rank*1 +\
+            self.gap_err_rank*1.5 +\
             self.start_err_rank*1
         self.adjusted_score = adjusted_combined_rank
-        #self.adjusted_score = round(((adjusted_combined_rank / (self._num_pages*1)) * 5), 2)
     
     def get_schedule(self):
         return self._schedule
@@ -176,6 +182,63 @@ class ScheduleFactory:
                     conflicts.append([-1 * (j+1), -1 * (i+1)])
         cnf = min_sol + single_sel + conflicts
         return cnf
+    
+    def _is_class_long(self, course_class):
+        if course_class[1] != "LAB":
+            for classtime in course_class[5]:
+                if classtime[2] - classtime[1] >= 170:
+                    return True
+        return False
+
+    def ortools_solve(self, components, randomize=True, hint=True):
+        model = cp_model.CpModel()
+        constraints = []
+        for c_i in range(len(components)):
+            outer_comp_vars = [model.NewBoolVar(f"{c_i},{j}") for j in range(len(components[c_i]))]
+            constraints.append(outer_comp_vars)
+            model.AddBoolOr([v for v in outer_comp_vars])
+        constraint_conflict_counts = []
+        for c_i in range(len(components)):
+            flatten_components = [j for sub in components[c_i+1:] for j in sub]
+            flatten_constraints = [j for sub in constraints[c_i+1:] for j in sub]
+            for i, class_a in enumerate(components[c_i]):
+                class_a_conflicts = []
+                class_a_has_conflict = False
+                for j, class_b in enumerate(flatten_components):
+                    if (class_a[0], class_b[0]) in self._CONFLICTS:
+                        class_a_conflicts.append(flatten_constraints[j])
+                        class_a_has_conflict = True
+                class_a_var = constraints[c_i][i]
+                if randomize:
+                    model.AddHint(class_a_var, randint(0, 1))
+                if len(class_a_conflicts) > 0:
+                    constraint_conflict_counts.append((class_a_var, len(class_a_conflicts)))
+                # A class that has no conflicts outside of its component is likely to be in a solution
+                if hint and not class_a_has_conflict:
+                    model.AddHint(class_a_var, 1)
+                # Add all the other classes in this component to the list of conflicts for this class
+                class_a_conflicts += list(set(constraints[c_i]) - set([class_a_var]))
+                model.AddBoolAnd([v_p.Not() for v_p in class_a_conflicts]).OnlyEnforceIf(class_a_var)
+        # A class that is long is likely to not be in a solution
+        if hint:
+            for i in range(len(components)):
+                for j in range(len(components[i])):
+                    if self._is_class_long(components[i][j]):
+                        model.AddHint(constraints[i][j], 0)
+        # Conflicts in the top quartile of conflict count are likely to not be in a solution
+        constraint_conflict_counts.sort(key=lambda t: t[1])
+        if hint and len(constraint_conflict_counts) > 0:
+            bottom_quartile_index = len(constraint_conflict_counts) // 4
+            top_quartile_index = len(constraint_conflict_counts) - bottom_quartile_index
+            for constraint_t in constraint_conflict_counts[top_quartile_index:]:
+                model.AddHint(constraint_t[0], 0)
+            for constraint_t in constraint_conflict_counts[:bottom_quartile_index]:
+                model.AddHint(constraint_t[0], 1)
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = 2
+        solution_printer = VarArraySolutionPrinter([])
+        s = solver.SearchForAllSolutions(model, solution_printer)
+        print(f"SAT: {solution_printer.solution_count()}")
 
     # Given a list of components, returns the size of the cross product. This is
     # useful for knowing the workload prior to computing it, which can be grow
@@ -328,21 +391,6 @@ class ScheduleFactory:
             for class_b in flat_classes:
                 _ = self._conflicts(class_a, class_b)
 
-    def product(self, *sequences):
-        '''Breadth First Search Cartesian Product'''
-        # sequences = tuple(tuple(seq) for seqin sequences)
-        def partitions(n, k):
-            for c in combinations(range(n+k-1), k-1):
-                yield (b-a-1 for a, b in zip((-1,)+c, c+(n+k-1,)))
-        max_position = [len(i)-1 for i in sequences]
-        for i in range(sum(max_position)):
-            for positions in partitions(i, len(sequences)):
-                try:
-                    yield tuple(map(lambda seq, pos: seq[pos], sequences, positions))
-                except IndexError:
-                    continue
-        yield tuple(map(lambda seq, pos: seq[pos], sequences, max_position))
-    
     def unique_sample_from_prod(self, domains, cardinality, n):
         indices = sample(range(cardinality), n)
         items = []
@@ -366,21 +414,24 @@ class ScheduleFactory:
     def generate_schedules(self, courses_obj, prefs=DEFAULT_PREFS):
         courses_dict = self._create_course_dict(courses_obj)
         (components, aliases) = self._create_components(courses_dict)
+        cardinality = self._cross_prod_cardinality(components)
+        print("Cross product cardinality: " + str(cardinality))
         self._build_conflicts_set(components)
         cnf = self._build_cnf(components)
+        #self.ortools_solve(components)
         if pycosat.solve(cnf) == "UNSAT":
             return {"schedules":[], "aliases":[],
                 "errmsg": "No schedules to display: all schedules have time conflicts."}
-        cardinality = self._cross_prod_cardinality(components)
-        print("Cross product cardinality: " + str(cardinality))
         valid_schedules = []
         if cardinality <= EXHAUST_CARDINALITY_THRESHOLD:
             schedules = list(product(*components))
             valid_schedules = self._validate_schedules(schedules)
+            print(f"Exhaustive: {len(valid_schedules)}")
         else:
             sampled_schedules = self.unique_sample_from_prod(
                 components, cardinality, EXHAUST_CARDINALITY_THRESHOLD)
             valid_schedules = self._validate_schedules(sampled_schedules)
+            print(f"Sampling: {len(valid_schedules)}")
             if len(valid_schedules) == 0:
                 return {"schedules":[], "aliases":[],
                     "errmsg": "No schedules to display: retrying may yield some schedules."}
