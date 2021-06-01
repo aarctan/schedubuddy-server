@@ -47,6 +47,28 @@ class QueryExecutor:
             json_res.append(json_course)
         return {"objects":json_res}
     
+    def _coalesce_identical_classtimes(self, classtimes):
+        res = []
+        i = 0
+        while i < len(classtimes):
+            a = classtimes[i]
+            j = i+1
+            while j < len(classtimes):
+                b = classtimes[j]
+                if a["startTime"] == b["startTime"] and a["day"] == b["day"]:
+                    print(f'Coalescing:\n{a}\nwith\n{b}')
+                    if a["location"] and b["location"]:
+                        if a["location"] != b["location"]:
+                            a["location"] = f'{a["location"]}, {b["location"]}'
+                    else:
+                        a["location"] = a["location"] if a["location"] else b["location"]
+                    del classtimes[j]
+                    j -= 1
+                j += 1
+            res.append(a)
+            i += 1
+        return res
+
     def _get_classtimes(self, term:int,c_class:str):
         classtime_query = f"SELECT * FROM uOfAClassTime WHERE term=? AND class=?"
         self._cursor.execute(classtime_query, (str(term), c_class))
@@ -59,6 +81,7 @@ class QueryExecutor:
                 if key not in ("term", "course", "class"):
                     json_classtime[key] = attr
             json_res.append(json_classtime)
+        self._coalesce_identical_classtimes(json_res)
         return json_res
     
     def get_department_courses(self, term:int, department:str):
