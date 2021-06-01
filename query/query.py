@@ -171,7 +171,7 @@ class QueryExecutor:
         course_name = self._cursor.fetchone()
         return course_name[0]
     
-    def get_schedules(self, term:int, course_id_list:str, prefs, gen_sched, sched_draw):
+    def get_schedules(self, term:int, course_id_list:str, prefs, gen_sched):
         course_id_list = [str(c) for c in course_id_list[1:-1].split(',')]
         prefs_list = [str(p) for p in prefs[1:-1].split(',')]
         start_time_pref = prefs_list[2]

@@ -8,7 +8,6 @@ from io import BytesIO
 from util import make_local_db
 from query import query
 from scheduler import sched_gen
-from draw import sched_draw
 import base64
 
 qe = query.QueryExecutor()
@@ -65,7 +64,7 @@ def api_gen_schedules():
         if required_arg not in args:
             return
     term_id, course_id_list, prefs = int(args["term"]), args["courses"], args["prefs"]
-    response = jsonify(qe.get_schedules(term_id, course_id_list, prefs, sf, sched_draw))
+    response = jsonify(qe.get_schedules(term_id, course_id_list, prefs, sf))
     return response
 
 Compress(app)
