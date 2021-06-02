@@ -4,6 +4,7 @@ from random import sample
 from . import SAT_solve
 
 EXHAUST_CARDINALITY_THRESHOLD = 200000
+SAMPLE_CARDINALITY_THRESHOLD = 10000000
 ASSUMED_COMMUTE_TIME = 40
 
 def str_t_to_int(str_t):
@@ -317,7 +318,12 @@ class ScheduleFactory:
             schedules = list(product(*components))
             valid_schedules = self._validate_schedules(schedules)
             print(f"Exhaustive: {len(valid_schedules)}")
-        else:
+        elif cardinality <= SAMPLE_CARDINALITY_THRESHOLD:
+            sampled_schedules = self.unique_sample_from_prod(
+                components, cardinality, EXHAUST_CARDINALITY_THRESHOLD)
+            valid_schedules = self._validate_schedules(sampled_schedules)
+            print(f"Sampling: {len(valid_schedules)}")
+        else: # cross product cardinality is too high to yield high sample count from sampling
             valid_schedules, _ = SAT_solve.search_within_time_limit(SAT_model, components, SAT_constraints, 3)
             if len(valid_schedules) == 0:
                 return {"schedules":[], "aliases":[],
