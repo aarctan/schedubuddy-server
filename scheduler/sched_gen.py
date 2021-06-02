@@ -1,25 +1,10 @@
-import pycosat
 import numpy as np
 from itertools import product
-from random import sample, randint
-from ortools.sat.python import cp_model
+from random import sample
+from . import SAT_solve
 
 EXHAUST_CARDINALITY_THRESHOLD = 200000
 ASSUMED_COMMUTE_TIME = 40
-
-class VarArraySolutionPrinter(cp_model.CpSolverSolutionCallback):
-    """Print intermediate solutions."""
-
-    def __init__(self, variables):
-        cp_model.CpSolverSolutionCallback.__init__(self)
-        self.__variables = variables
-        self.__solution_count = 0
-
-    def on_solution_callback(self):
-        self.__solution_count += 1
-
-    def solution_count(self):
-        return self.__solution_count
 
 def str_t_to_int(str_t):
     h = int(str_t[0:2])
@@ -145,100 +130,6 @@ class ScheduleFactory:
 
     def _json_sched(self, sched):
         return [c[0] for c in sched]
-
-    # 3 classes of clauses are constructed:
-    # 1. min_sol is conjunction of classes that must be in a solution,
-    #    i.e. a solution must have a class from each component.
-    # 2. single_sel is logical implication of the fact that if a solution
-    #    contains class P then all classes C in the same component of P cannot
-    #    be in the solution: P -> ~C1 /\ ~C2, /\ ... /\ ~Cn.
-    # 3. conflicts is a set of tuple lists of form [C1, C2] where C1 and C2
-    #    have a time conflict
-    def _build_cnf(self, components):
-        min_sol = []
-        single_sel = []
-        flat_idx = 1
-        for component in components:
-            component_min_sol = list(range(flat_idx, len(component)+flat_idx))
-            flat_idx += len(component)
-            min_sol.append(component_min_sol)
-            not_min_sol = [-1 * e for e in component_min_sol]
-            component_single_sel = []
-            for i_ss in range(len(not_min_sol)):
-                for j_ss in range(i_ss+1, len(not_min_sol)):
-                    if i_ss != j_ss:
-                        component_single_sel.append(\
-                            [not_min_sol[i_ss], not_min_sol[j_ss]])
-                        component_single_sel.append(\
-                            [not_min_sol[j_ss], not_min_sol[i_ss]])
-            single_sel += component_single_sel
-        flat_components = [e for c in components for e in c]
-        conflicts = []
-        for i in range(len(flat_components)):
-            for j in range(i+1, len(flat_components)):
-                class_a, class_b = flat_components[i][0], flat_components[j][0]
-                if (class_a, class_b) in self._CONFLICTS:
-                    conflicts.append([-1 * (i+1), -1 * (j+1)])
-                    conflicts.append([-1 * (j+1), -1 * (i+1)])
-        cnf = min_sol + single_sel + conflicts
-        return cnf
-    
-    def _is_class_long(self, course_class):
-        if course_class[1] != "LAB":
-            for classtime in course_class[5]:
-                if classtime[2] - classtime[1] >= 170:
-                    return True
-        return False
-
-    def ortools_solve(self, components, randomize=True, hint=True):
-        model = cp_model.CpModel()
-        constraints = []
-        for c_i in range(len(components)):
-            outer_comp_vars = [model.NewBoolVar(f"{c_i},{j}") for j in range(len(components[c_i]))]
-            constraints.append(outer_comp_vars)
-            model.AddBoolOr([v for v in outer_comp_vars])
-        constraint_conflict_counts = []
-        for c_i in range(len(components)):
-            flatten_components = [j for sub in components[c_i+1:] for j in sub]
-            flatten_constraints = [j for sub in constraints[c_i+1:] for j in sub]
-            for i, class_a in enumerate(components[c_i]):
-                class_a_conflicts = []
-                class_a_has_conflict = False
-                for j, class_b in enumerate(flatten_components):
-                    if (class_a[0], class_b[0]) in self._CONFLICTS:
-                        class_a_conflicts.append(flatten_constraints[j])
-                        class_a_has_conflict = True
-                class_a_var = constraints[c_i][i]
-                if randomize:
-                    model.AddHint(class_a_var, randint(0, 1))
-                if len(class_a_conflicts) > 0:
-                    constraint_conflict_counts.append((class_a_var, len(class_a_conflicts)))
-                # A class that has no conflicts outside of its component is likely to be in a solution
-                if hint and not class_a_has_conflict:
-                    model.AddHint(class_a_var, 1)
-                # Add all the other classes in this component to the list of conflicts for this class
-                class_a_conflicts += list(set(constraints[c_i]) - set([class_a_var]))
-                model.AddBoolAnd([v_p.Not() for v_p in class_a_conflicts]).OnlyEnforceIf(class_a_var)
-        # A class that is long is likely to not be in a solution
-        if hint:
-            for i in range(len(components)):
-                for j in range(len(components[i])):
-                    if self._is_class_long(components[i][j]):
-                        model.AddHint(constraints[i][j], 0)
-        # Conflicts in the top quartile of conflict count are likely to not be in a solution
-        constraint_conflict_counts.sort(key=lambda t: t[1])
-        if hint and len(constraint_conflict_counts) > 0:
-            bottom_quartile_index = len(constraint_conflict_counts) // 4
-            top_quartile_index = len(constraint_conflict_counts) - bottom_quartile_index
-            for constraint_t in constraint_conflict_counts[top_quartile_index:]:
-                model.AddHint(constraint_t[0], 0)
-            for constraint_t in constraint_conflict_counts[:bottom_quartile_index]:
-                model.AddHint(constraint_t[0], 1)
-        solver = cp_model.CpSolver()
-        solver.parameters.max_time_in_seconds = 2
-        solution_printer = VarArraySolutionPrinter([])
-        s = solver.SearchForAllSolutions(model, solution_printer)
-        print(f"SAT: {solution_printer.solution_count()}")
 
     # Given a list of components, returns the size of the cross product. This is
     # useful for knowing the workload prior to computing it, which can be grow
@@ -384,7 +275,7 @@ class ScheduleFactory:
                     course[component] = [class_dict]
             courses.append(course)
         return courses
-    
+
     def _build_conflicts_set(self, components):
         flat_classes = [e for c in components for e in c]
         for class_a in flat_classes:
@@ -417,9 +308,8 @@ class ScheduleFactory:
         cardinality = self._cross_prod_cardinality(components)
         print("Cross product cardinality: " + str(cardinality))
         self._build_conflicts_set(components)
-        cnf = self._build_cnf(components)
-        #self.ortools_solve(components)
-        if pycosat.solve(cnf) == "UNSAT":
+        SAT_model, SAT_constraints = SAT_solve.build_model(components, self._CONFLICTS)
+        if not SAT_solve.is_satisfiable(SAT_model):
             return {"schedules":[], "aliases":[],
                 "errmsg": "No schedules to display: all schedules have time conflicts."}
         valid_schedules = []
@@ -428,10 +318,7 @@ class ScheduleFactory:
             valid_schedules = self._validate_schedules(schedules)
             print(f"Exhaustive: {len(valid_schedules)}")
         else:
-            sampled_schedules = self.unique_sample_from_prod(
-                components, cardinality, EXHAUST_CARDINALITY_THRESHOLD)
-            valid_schedules = self._validate_schedules(sampled_schedules)
-            print(f"Sampling: {len(valid_schedules)}")
+            valid_schedules, _ = SAT_solve.search_within_time_limit(SAT_model, components, SAT_constraints, 3)
             if len(valid_schedules) == 0:
                 return {"schedules":[], "aliases":[],
                     "errmsg": "No schedules to display: retrying may yield some schedules."}

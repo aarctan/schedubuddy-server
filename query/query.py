@@ -56,7 +56,6 @@ class QueryExecutor:
             while j < len(classtimes):
                 b = classtimes[j]
                 if a["startTime"] == b["startTime"] and a["day"] == b["day"]:
-                    print(f'Coalescing:\n{a}\nwith\n{b}')
                     if a["location"] and b["location"]:
                         if a["location"] != b["location"]:
                             a["location"] = f'{a["location"]}, {b["location"]}'
