@@ -100,7 +100,7 @@ def make_names_table(db_path):
     sqlconn.close()
 
 def cleanup(db_path):
-    logging.debug("Pruning courses that have no classtimes...")
+    logging.debug("Pruning courses and classes that have no classtimes...")
     sqlconn = sqlite3.connect(db_path)
     sqlcursor = sqlconn.cursor()
     sqlcursor.execute("DELETE FROM uOfACourse WHERE course IN\
@@ -116,18 +116,11 @@ def cleanup(db_path):
     sqlconn.close()
 
 def fetch_all(flush=True):
-    try:
-        os.mkdir("local")
-    except:
-        pass
     logging.debug("Created local database directory.")
     term_db_path = os.path.join(dirname, "../local/database.db")
     if not os.path.exists(term_db_path):
         for ongoing_term in get_ongoing_terms():
             term_code = str(ongoing_term["term"][0])
             make_local_db(term_code, term_db_path)
-    make_names_table(term_db_path)
     cleanup(term_db_path)
-
-#term_db_path = os.path.join(dirname, "../local/database.db")
-#cleanup(term_db_path)
+    make_names_table(term_db_path)
