@@ -1,6 +1,4 @@
-import sqlite3
-import os
-import json
+import os, sqlite3, json, sys, logging
 
 def str_t_to_int(str_t):
     h = int(str_t[0:2])
@@ -22,6 +20,7 @@ class QueryExecutor:
         university_json_f = open(uni_format_path)
         self._uni_json = json.load(university_json_f)
         university_json_f.close()
+        logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
     
     def get_terms(self):
         term_query = f"SELECT * FROM uOfATerm"
@@ -82,18 +81,6 @@ class QueryExecutor:
             json_res.append(json_classtime)
         self._coalesce_identical_classtimes(json_res)
         return json_res
-    
-    def get_department_courses(self, term:int, department:str):
-        department_query = f"SELECT * FROM uOfACourse WHERE term=? AND departmentCode=?"
-        self._cursor.execute(department_query, (str(term), department))
-        course_rows = self._cursor.fetchall()
-        json_res = []
-        for course_row in course_rows:
-            json_course = {}
-            for k, attr in enumerate(course_row):
-                json_course[self._uni_json["calendar"]["uOfACourse"][k]] = attr
-            json_res.append(json_course)
-        return {"objects":json_res}
     
     # Need to check if the preferences still allow of the generation of schedules
     # containing a class from each possible component (e.g. LEC, SEM).
@@ -191,15 +178,15 @@ class QueryExecutor:
                     "errmsg": f"No schedules to display: the provided settings\
                     filtered out all classes for " + self.get_course_name(term, course_id)}}
             classes.append(course_classes)
-        ##### Debugging
+
         c_list = []
         for course_id in course_id_list:
             try:
                 c_list.append(self.get_course_name(term, course_id))
             except:
                 pass
-        print(c_list)
-        #####
+        logging.debug(c_list)
+
         sched_obj = gen_sched.generate_schedules({"objects":classes}, prefs)
         if "errmsg" in sched_obj:
             return {"objects":sched_obj}
