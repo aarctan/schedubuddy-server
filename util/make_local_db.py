@@ -5,7 +5,6 @@ import logging
 import sys
 import os
 import datetime
-import shutil
 import requests
 from bs4 import BeautifulSoup
 

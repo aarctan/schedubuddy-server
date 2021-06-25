@@ -83,18 +83,6 @@ class QueryExecutor:
         self._coalesce_identical_classtimes(json_res)
         return json_res
     
-    def get_department_courses(self, term:int, department:str):
-        department_query = f"SELECT * FROM uOfACourse WHERE term=? AND departmentCode=?"
-        self._cursor.execute(department_query, (str(term), department))
-        course_rows = self._cursor.fetchall()
-        json_res = []
-        for course_row in course_rows:
-            json_course = {}
-            for k, attr in enumerate(course_row):
-                json_course[self._uni_json["calendar"]["uOfACourse"][k]] = attr
-            json_res.append(json_course)
-        return {"objects":json_res}
-    
     # Need to check if the preferences still allow of the generation of schedules
     # containing a class from each possible component (e.g. LEC, SEM).
     def filter_check(self, term:int, course:str, filtered_rows):

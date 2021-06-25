@@ -11,7 +11,6 @@ class VarArraySolutionCollector(cp_model.CpSolverSolutionCallback):
         self._solution_count = 0
 
     def on_solution_callback(self):
-        # np.asarray(np.where(x == 1)).T
         flat_c = [j for sub in self._components for j in sub]
         flat_v = [self.Value(j) for sub in self._variables for j in sub]
         self._valid_schedules.append([y for x, y in enumerate(flat_c) if flat_v[x]])

@@ -1,9 +1,9 @@
-# HeyWilson
+# schedubuddy-server
 
 This program is the server implementation of a schedule generator for the [University of Alberta](https://www.ualberta.ca/index.html).
-Given a list of courses (e.g., ["CMPUT 174", "MATH 117"]), several schedules will be generated and ordered by various metrics. More info to be added in the future.
+Given a list of courses, several schedules will be generated and ordered by various metrics. More info to be added in the future.
 
-Start the server with: `python3 runserver.py`
+Start the server with: `python3 app.py`
 
 ## API
 GET `/api/v1/terms`
@@ -111,7 +111,4 @@ A fixed maximum number of top schedules are outputted to eliminate poor schedule
 
 ###### <sup>1</sup> This process may be parallelizable, although this has not yet been investigated.<br></br><sup>2</sup> Blocking out times has not yet been implemented.
 
-To be documented in the future.
-
-## Discord app
 To be documented in the future.
