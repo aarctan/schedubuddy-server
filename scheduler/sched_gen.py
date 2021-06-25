@@ -17,14 +17,6 @@ def str_t_to_int(str_t):
     if not pm and h<12: return h*60+m
     return None
 
-DEFAULT_PREFS = {
-    "EVENING_CLASSES": True,
-    "ONLINE_CLASSES": True,
-    "IDEAL_START_TIME": 10,
-    "IDEAL_CONSECUTIVE_LENGTH": 3,
-    "LIMIT": 30
-}
-
 class ValidSchedule:
     def __init__(self, schedule, aliases, blocks, num_pages, prefs):
         self._schedule = schedule
@@ -303,7 +295,7 @@ class ScheduleFactory:
     # attempt to validate all schedules. If the size exceeds the threshold,
     # randomly sample from every axis (component) and gather a subset of all
     # possibly valid schedules of size T.
-    def generate_schedules(self, courses_obj, prefs=DEFAULT_PREFS):
+    def generate_schedules(self, courses_obj, prefs):
         courses_dict = self._create_course_dict(courses_obj)
         (components, aliases) = self._create_components(courses_dict)
         cardinality = self._cross_prod_cardinality(components)
