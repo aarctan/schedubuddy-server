@@ -1,8 +1,7 @@
-import flask
+import flask, json
 from flask import request, jsonify
 from flask_cors import CORS
 from flask_compress import Compress
-import json
 from query import query
 from scheduler import sched_gen
 
@@ -52,4 +51,3 @@ def api_gen_schedules():
 Compress(app)
 if __name__ == "__main__":
     app.run()
-    

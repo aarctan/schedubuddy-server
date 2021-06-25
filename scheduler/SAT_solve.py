@@ -1,4 +1,3 @@
-import numpy as np
 from random import randint
 from ortools.sat.python import cp_model
 
