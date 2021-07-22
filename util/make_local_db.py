@@ -147,5 +147,3 @@ def db_update():
         logging.debug("Old database deleted.")
     os.rename(tmp_db_path, old_db_path)
     logging.debug("Updated database")
-
-db_update()
