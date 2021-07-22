@@ -1,4 +1,4 @@
-import schedule, time, json, ldap3, sqlite3, logging, sys, os, datetime, requests
+import json, ldap3, sqlite3, logging, sys, os, datetime, requests
 from bs4 import BeautifulSoup
 
 # Set logging level to at least INFO to disable debug messages.
@@ -33,7 +33,7 @@ def get_ongoing_terms():
         clean_term = _clean_ldap_attrs(term, "uOfATerm")
         term_end_str = clean_term["endDate"][0]
         term_end_date = datetime.datetime.strptime(term_end_str, '%Y-%m-%d')
-        if term_end_date < today_date or "Continuing" in clean_term["termTitle"][0] or not "Summer" in clean_term["termTitle"][0]:
+        if term_end_date < today_date:
             continue
         curr_terms.append(clean_term)
     return curr_terms
@@ -49,7 +49,7 @@ def _write_entry(sqlcursor, table, attrs):
     query = f"INSERT INTO {table} VALUES({var_holders})"
     sqlcursor.executemany(query, values)
 
-def make_local_db(term_code:str, term_db_path:str):
+def make_db(term_code:str, term_db_path:str):
     logging.debug(f"Adding data for term {term_code}...")
     sqlconn = sqlite3.connect(term_db_path)
     sqlcursor = sqlconn.cursor()
@@ -115,11 +115,11 @@ def cleanup(db_path):
 def fetch_all(db_path):
     for ongoing_term in get_ongoing_terms():
         term_code = str(ongoing_term["term"][0])
-        make_local_db(term_code, db_path)
+        make_db(term_code, db_path)
     cleanup(db_path)
     make_names_table(db_path)
 
-def update():
+def db_update():
     tmp_db_path = os.path.join(dirname, "../local/tmp.db")
     tmp_db_exists = os.path.exists(tmp_db_path)
     if tmp_db_exists:
@@ -147,12 +147,3 @@ def update():
         logging.debug("Old database deleted.")
     os.rename(tmp_db_path, old_db_path)
     logging.debug("Updated database")
-
-def run():
-    update()
-    schedule.every(20).seconds.do(update)
-    while 1:
-        schedule.run_pending()
-        time.sleep(1)
-
-run()
