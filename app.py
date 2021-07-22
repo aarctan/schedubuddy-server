@@ -1,12 +1,15 @@
+from apscheduler.schedulers.background import BackgroundScheduler
 import flask, json
+from datetime import datetime
 from flask import request, jsonify
 from flask_cors import CORS
 from flask_compress import Compress
 from query import query
 from scheduler import sched_gen
+from util import make_local_db
 
-qe = query.QueryExecutor()
-sf = sched_gen.ScheduleFactory()
+qe = None
+sf = None
 
 app = flask.Flask(__name__)
 cors = CORS(app)
@@ -48,6 +51,18 @@ def api_gen_schedules():
     response = jsonify(qe.get_schedules(term_id, course_id_list, prefs, sf))
     return response
 
-Compress(app)
+def update():
+    global qe, sf
+    make_local_db.db_update()
+    new_qe = query.QueryExecutor()
+    new_sf = sched_gen.ScheduleFactory()
+    qe = new_qe
+    sf = new_sf
+
 if __name__ == "__main__":
-    app.run()
+    update()
+    sched = BackgroundScheduler(daemon=True)
+    sched.add_job(update,'interval',hours=24)
+    sched.start()
+    Compress(app)
+    app.run(debug=True, use_reloader=False)
