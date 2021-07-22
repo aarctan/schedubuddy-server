@@ -1,4 +1,11 @@
-import json, ldap3, sqlite3, logging, sys, os, datetime, requests
+import json
+import ldap3
+import sqlite3
+import logging
+import sys
+import os
+import datetime
+import requests
 from bs4 import BeautifulSoup
 
 # Set logging level to at least INFO to disable debug messages.
@@ -33,7 +40,7 @@ def get_ongoing_terms():
         clean_term = _clean_ldap_attrs(term, "uOfATerm")
         term_end_str = clean_term["endDate"][0]
         term_end_date = datetime.datetime.strptime(term_end_str, '%Y-%m-%d')
-        if term_end_date < today_date:
+        if term_end_date < today_date or "Continuing" in clean_term["termTitle"][0]:
             continue
         curr_terms.append(clean_term)
     return curr_terms
@@ -49,7 +56,7 @@ def _write_entry(sqlcursor, table, attrs):
     query = f"INSERT INTO {table} VALUES({var_holders})"
     sqlcursor.executemany(query, values)
 
-def make_db(term_code:str, term_db_path:str):
+def make_local_db(term_code:str, term_db_path:str):
     logging.debug(f"Adding data for term {term_code}...")
     sqlconn = sqlite3.connect(term_db_path)
     sqlcursor = sqlconn.cursor()
@@ -63,23 +70,17 @@ def make_db(term_code:str, term_db_path:str):
     sqlconn.commit()
     sqlconn.close()
 
-def UID_to_name(sqlcursor, UID):
-    name_query = "SELECT Name FROM uOfANames WHERE instructorUid=?"
-    sqlcursor.execute(name_query, (str(UID),))
-    name = sqlcursor.fetchone()
-    if not name:
-        logging.debug(f"{UID} not cached, scraping name...")
-        url = f"https://apps.ualberta.ca/directory/person/{UID}"
-        soup = BeautifulSoup(requests.get(url).text, "lxml")
-        name = str(UID)
-        try:
-            name = soup.find("h2", {"class": "card-title mb-2"}).text
-            name, *_ = name.partition(',')
-        except:
-            name = str(UID)
-            logging.warn(f"Name not found for UID: {UID}")
-        sqlcursor.execute("INSERT INTO uOfANames VALUES (?, ?)", (UID, name))
-        logging.debug(f"Mapped {UID} -> {name}")
+def searchUIDforName(id):
+    url = f"https://apps.ualberta.ca/directory/person/{id}"
+    soup = BeautifulSoup(requests.get(url).text, "lxml")
+    name = str(id)
+    try:
+        name = soup.find("h2", {"class": "card-title mb-2"}).text
+        name, *_ = name.partition(',')
+    except:
+        name = str(id)
+        print(f"Name not found for UID: {id}")
+    return name
 
 def make_names_table(db_path):
     logging.debug(f"Gathering instructorUid names...")
@@ -92,7 +93,8 @@ def make_names_table(db_path):
         for UID in list(entry):
             if not UID in UIDs:
                 UIDs.add(UID)
-                UID_to_name(sqlcursor, UID)
+                name = searchUIDforName(UID)
+                sqlcursor.execute("INSERT INTO uOfANames VALUES (?, ?)", (UID, name))
     sqlconn.commit()
     sqlconn.close()
 
@@ -112,38 +114,12 @@ def cleanup(db_path):
     sqlconn.commit()
     sqlconn.close()
 
-def fetch_all(db_path):
-    for ongoing_term in get_ongoing_terms():
-        term_code = str(ongoing_term["term"][0])
-        make_db(term_code, db_path)
-    cleanup(db_path)
-    make_names_table(db_path)
-
-def db_update():
-    tmp_db_path = os.path.join(dirname, "../local/tmp.db")
-    tmp_db_exists = os.path.exists(tmp_db_path)
-    if tmp_db_exists:
-        os.remove(tmp_db_path)
-        logging.debug("Existing temp database deleted.")
-    tmp_db_conn = sqlite3.connect(tmp_db_path)
-    tmp_db_cursor = tmp_db_conn.cursor()
-    old_db_path = os.path.join(dirname, "../local/database.db")
-    old_db_exists = os.path.exists(old_db_path)
-    if old_db_exists:
-        logging.debug("Old database exists, copying over the names table.")
-        old_db_conn = sqlite3.connect(old_db_path)
-        old_db_cursor = old_db_conn.cursor()
-        tmp_db_cursor.execute("CREATE TABLE IF NOT EXISTS uOfANames (instructorUid text, Name text)")
-        old_db_cursor.execute("SELECT * FROM uOfANames")
-        for UID, name in old_db_cursor.fetchall():
-            tmp_db_cursor.execute("INSERT INTO uOfANames VALUES (?, ?)", (UID, name))
-        tmp_db_conn.commit()
-        tmp_db_conn.close()
-        old_db_conn.close()
-        logging.debug("Copied new names over.")
-    fetch_all(tmp_db_path)
-    if old_db_exists:
-        os.remove(old_db_path)
-        logging.debug("Old database deleted.")
-    os.rename(tmp_db_path, old_db_path)
-    logging.debug("Updated database")
+def fetch_all(flush=True):
+    logging.debug("Created local database directory.")
+    term_db_path = os.path.join(dirname, "../local/database.db")
+    if not os.path.exists(term_db_path):
+        for ongoing_term in get_ongoing_terms():
+            term_code = str(ongoing_term["term"][0])
+            make_local_db(term_code, term_db_path)
+    cleanup(term_db_path)
+    make_names_table(term_db_path)
