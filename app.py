@@ -52,17 +52,16 @@ def api_gen_schedules():
     return response
 
 def update():
-    global qe, sf
+    global qe
+    global sf
     make_local_db.db_update()
-    new_qe = query.QueryExecutor()
-    new_sf = sched_gen.ScheduleFactory()
-    qe = new_qe
-    sf = new_sf
+    qe = query.QueryExecutor()
+    sf = sched_gen.ScheduleFactory()
 
-if __name__ == "__main__":
-    update()
-    sched = BackgroundScheduler(daemon=True)
-    sched.add_job(update,'interval',hours=24)
-    sched.start()
-    Compress(app)
-    app.run(debug=True, use_reloader=False)
+qe = query.QueryExecutor()
+sf = sched_gen.ScheduleFactory()
+sched = BackgroundScheduler(daemon=True)
+sched.add_job(update,'interval',hours=24)
+sched.start()
+Compress(app)
+app.run(debug=True, use_reloader=False)
