@@ -34,7 +34,7 @@ The class object is that which contains class time, instructor, location, and ot
   "career": "UGRD", 
   "catalog": "125", 
   "course": "011487", 
-  "courseDescription": "Systems of linear equations. Vectors in n-space, vector equations of ...", 
+  "courseDescription": "Systems of linear equations. Vectors in n-space, vector ...", 
   "courseTitle": "Linear Algebra I", 
   "department": "Department of Mathematical and Statistical Sciences", 
   "departmentCode": "MATH SCI", 
@@ -92,7 +92,13 @@ The class object is that which contains class time, instructor, location, and ot
 
 ### Endpoints
 
-GET `/api/v1/terms`
+There are three endpoints that the current version of [schedubuddy](https://schedubuddy.com/) uses.
+Upon loading the website, term data is requested to allow the user to select a term in which to use schedubuddy for.
+When a term is selected, all the courses available for that course are requested so the user can select their course list.
+
+**GET** `/api/v1/terms`
+
+Response:
 ```yaml
 {
   "objects": [
@@ -104,17 +110,83 @@ GET `/api/v1/terms`
 }
 ```
 
-GET `/api/v1/courses/`
+---
 
-TBD
+**GET** `/api/v1/courses/`
 
-GET `/api/v1/classes/`
+**Query Parameters**\
+`term`: Term ID (e.g. 1770) to get courses for
 
-TBD
+Response:
 
-GET `/api/v1/gen-schedules/`
+```yaml
+{
+  "objects": [
+    <course object 1>,
+    <course object 2>,
+    ...,
+    <course object n>
+  ]
+}
+```
 
-TBD
+Example: `/api/v1/courses/?term=1770`
+
+---
+
+**GET** `/api/v1/gen-schedules/`
+
+**Query Parameters**\
+`term`: Term ID (e.g. 1770) to get courses for\
+`courses`: Array of course IDs\
+`prefs`: Array indicating the desired preferences for schedule ranking.
+
+The preferences array takes the following form:\
+index `0`: Evening classes considered (1) or not (0)\
+index `1`: Online classes considered (1) or not (0)\
+index `2`: Preferred start time for classes, e.g. `10:00 AM`\
+index `3`: Preferred hours of class before a break, e.g. `2`\
+index `4`: Number of schedules to display, e.g. `30`
+
+Response:
+
+```yaml
+{
+  "objects": {
+    "aliases": {
+      alias_key_1: [
+        [
+          <class id>,
+          <class component>
+        ],
+        <alias tuple 2>,
+        ...,
+        <alias tuple n>
+      ]
+      <alias 2>,
+      ...,
+      <alias n>
+    }
+    "schedules": [
+      [
+        <class object>,
+        <class object>,
+        ...,
+        <class object>
+      ],
+      <schedule array 2>,
+      ...,
+      <schedule array n>
+    ]
+  }
+}
+```
+
+Example: `/api/v1/gen-schedules/?term=1770&courses=[011487,106431,096650]&prefs=[1,1,10:00%20AM,2,30]`
+
+*Please note that the way that aliasing information is provided will be changed in the future.*
+
+___
 
 ## Schedule generation
 
