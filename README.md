@@ -25,4 +25,23 @@ Please see the [wiki](https://github.com/Exanut/schedubuddy-server/wiki/API-Endp
 
 ## Schedule generation
 
-TBD
+This section is a brief overview of the schedule generation algorithm -- refer to the source code for implementation.
+
+A "valid" schedule is considered to be one that has no time conflicts.
+The goal is to compute the set of all valid schedules given an input list of courses.
+A model of constraints is initially constructed for a boolean SAT solver to determine if the set of valid schedules is non-empty.
+For the input list, the size of possible schedules is calculated to determine if an exhaustive search of valid schedules is computationally feasible.
+If such a search is expected to be too expensive, one of two strategies is employed to maximally explore the search space of schedules.
+Strategy 1: a number of random schedules are sampled from the domain of all schedules.
+All of the sampled schedules are assessed for validity.
+Strategy 2: the previously constructed boolean SAT model is reused to compute solutions.
+The latter strategy carries overhead due to boolean mapping, but is far more powerful than strategy 1 when the number of time conflicts is high.
+After collecting a subset of valid schedules, all schedules are ranked against each other on 3 heuristics:
+
+- Time variance across days: classes should start at roughly the same time every day, and, less importantly, end at the same time.
+- Time spent in class: there should not be large time gaps in-between classes.
+- Favourable breaks: for every *k* consecutive hours spent in class, a break is favourable to have.
+
+The weightage of each factor can be adjusted to accommodate for user preference to produce a sorted ranking of all valid schedules.
+This ranking strategy results in each schedule having a numerical score relative to every other schedule.
+To eliminate poor schedules, a cutoff rank discards all schedules below it.
