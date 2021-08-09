@@ -1,7 +1,11 @@
+from random import shuffle
+
 class MRV_Model:
     def __init__(self, components, conflicts):
         self._components = components
         self._components.sort(key=len)
+        for i in range(len(self._components)):
+            shuffle(self._components[i])
         self._conflicts = conflicts
         self._depth = len(self._components) - 1
         self.valid_schedules = []
