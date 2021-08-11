@@ -254,5 +254,5 @@ class ScheduleFactory:
         shuffle(valid_schedules)
         print(f"Exhaustive (MRV): {len(valid_schedules)}")
         self._map_components_to_blocks(components)
-        sorted_schedules = self._master_sort(valid_schedules[:10000], prefs)
+        sorted_schedules = self._master_sort(valid_schedules, prefs)
         return {"schedules":[[c[0] for c in s._schedule] for s in sorted_schedules], "aliases":aliases}
