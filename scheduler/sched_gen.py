@@ -1,11 +1,8 @@
 import numpy as np
-from itertools import product
-from random import sample
-from . import SAT_solve
+from random import sample, shuffle
+from . import MRV, SAT_solve
 
-EXHAUST_CARDINALITY_THRESHOLD = 200000
-SAMPLE_CARDINALITY_THRESHOLD = 10000000
-ASSUMED_COMMUTE_TIME = 40
+ASSUMED_COMMUTE_TIME = 30
 
 def str_t_to_int(str_t):
     h = int(str_t[0:2])
@@ -305,20 +302,10 @@ class ScheduleFactory:
         if not SAT_solve.is_satisfiable(SAT_model):
             return {"schedules":[], "aliases":[],
                 "errmsg": "No schedules to display: all schedules have time conflicts."}
-        valid_schedules = []
-        if cardinality <= EXHAUST_CARDINALITY_THRESHOLD:
-            schedules = list(product(*components))
-            valid_schedules = self._validate_schedules(schedules)
-            print(f"Exhaustive: {len(valid_schedules)}")
-        elif cardinality <= SAMPLE_CARDINALITY_THRESHOLD:
-            sampled_schedules = self.unique_sample_from_prod(
-                components, cardinality, EXHAUST_CARDINALITY_THRESHOLD)
-            valid_schedules = self._validate_schedules(sampled_schedules)
-            print(f"Sampling: {len(valid_schedules)}")
-        else: # cross product cardinality is too high to yield high sample count from sampling
-            valid_schedules, _ = SAT_solve.search_within_time_limit(SAT_model, components, SAT_constraints, 3)
-            if len(valid_schedules) == 0:
-                return {"schedules":[], "aliases":[],
-                    "errmsg": "No schedules to display: retrying may yield some schedules."}
-        sorted_schedules = self._master_sort(valid_schedules, prefs)
+        mrv_model = MRV.MRV_Model(components, self._CONFLICTS)
+        mrv_model.solve()
+        valid_schedules = mrv_model.get_valid_schedules()
+        shuffle(valid_schedules)
+        print(f"Exhaustive (MRV): {len(valid_schedules)}")
+        sorted_schedules = self._master_sort(valid_schedules[:20000], prefs)
         return {"schedules":[[c[0] for c in s._schedule] for s in sorted_schedules], "aliases":aliases}
