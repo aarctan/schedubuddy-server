@@ -20,83 +20,51 @@ class ValidSchedule:
         self._aliases = aliases
         self._blocks = blocks
         self._num_pages = num_pages
-        self.time_variance = self.compute_time_variance()
-        self.time_wasted = self.compute_time_wasted()
-        self.gap_err = self.compute_gap_err(prefs["IDEAL_CONSECUTIVE_LENGTH"])
-        self.start_err = self.compute_start_err(prefs["IDEAL_START_TIME"])
+        self._prefs = prefs
+        self.time_variance, self.time_wasted, self.gap_err, self.start_err = 0,0,0,0
+        self._static_evaluate()
         self.time_wasted_rank = None
         self.time_var_rank = None
         self.gap_err_rank = None
         self.start_err_rank = None
-
         self.overall_rank = None
         self.score = None
 
-    def compute_gap_err(self, ideal):
-        ideal = ideal*60
-        GVE = 0
-        for day_blocks in self._blocks.values():
-            for block in day_blocks:
-                block_len = block[1] - block[0]
-                if block_len <= ideal:
-                    GVE += (ideal - block_len)**2
-                else:
-                    # greatly discourage very long marathons
-                    GVE += (block_len - ideal)**3
-        return GVE
-    
-    def compute_start_err(self, ideal):
-        ideal = ideal*60
-        error = 0
-        for day in self._blocks.keys():
-            day_start_t = self._blocks[day][0][0]
-            if day_start_t < ideal:
-                # discourage very early starts
-                error += ((ideal - day_start_t) ** 3)
-            else:
-                error += (self._blocks[day][0][0] - ideal) ** 2
-        return error / (len(self._blocks.keys()))
-    
-    def compute_time_variance(self):
+    def _static_evaluate(self):
+        ideal_consec_len = self._prefs["IDEAL_CONSECUTIVE_LENGTH"] * 60
+        ideal_start_t = self._prefs["IDEAL_START_TIME"] * 60
         start_times, end_times = [], []
         for day in self._blocks.keys():
-            start_times.append(self._blocks[day][0][0])
-            end_times.append(self._blocks[day][-1][1])
-        return np.var(start_times)*1.5 + np.var(end_times)
-    
-    def compute_time_wasted(self):
-        time_wasted = 0
-        for day in self._blocks.keys():
-            time_wasted += ASSUMED_COMMUTE_TIME * 2
+            self.time_wasted += ASSUMED_COMMUTE_TIME * 2
+            day_start_t, day_end_t = self._blocks[day][0][0], self._blocks[day][-1][1]
+            start_times.append(day_start_t)
+            end_times.append(day_end_t)
+            self.start_err += (ideal_start_t - day_start_t) **\
+                (3 if day_start_t < ideal_start_t else 2)
             day_blocks = self._blocks[day]
-            day_time_wasted = day_blocks[-1][1] - day_blocks[0][0]
+            self.time_wasted += day_end_t - day_start_t
             for block in day_blocks:
-                day_time_wasted -= block[1] - block[0]
-            time_wasted += day_time_wasted
-        return time_wasted
-    
-    def get_gap_err(self):
-        return self.gap_err
-    
-    def get_time_variance(self):
-        return self.time_variance
+                block_len = block[1] - block[0]
+                self.time_wasted -= block_len
+                self.gap_err += (block_len - ideal_consec_len) **\
+                    (2 if block_len <= ideal_consec_len else 3)
+        self.start_err = self.start_err / len(self._blocks.keys())
+        self.time_variance = np.var(start_times)*1.5 + np.var(end_times)
 
     def set_overall_rank(self):
-        adjusted_combined_rank =\
-            self.time_wasted_rank*1 +\
-            self.time_var_rank*1 +\
-            self.gap_err_rank*1.5 +\
-            self.start_err_rank*1
+        adjusted_combined_rank = \
+            self.time_wasted_rank * 1 + \
+            self.time_var_rank    * 1 + \
+            self.gap_err_rank     * 1.5 + \
+            self.start_err_rank   * 1
         self.adjusted_score = adjusted_combined_rank
-    
-    def get_schedule(self):
-        return self._schedule
 
 class ScheduleFactory:
     def __init__(self, exhaust_threshold=500000):
         self._EXHAUST_CARDINALITY_THRESHOLD = exhaust_threshold
         self._day_index = {'M':0, 'T':1, 'W':2, 'R':3, 'F':4, 'S':5, 'U':6}
         self._CONFLICTS = set()
+        self._component_blocks = {}
 
     def _conflicts(self, class_a, class_b):
         class_a_id, class_b_id = class_a[0], class_b[0]
@@ -130,46 +98,17 @@ class ScheduleFactory:
             cardinality *= len(component)
         return cardinality
 
-    # Given a schedule that is represented by a list of classes retrived from a
-    # database, check if it is valid by looking up the existence of
-    # time-conflict-pairs for every pair of classes in the schedule.
-    def _valid_schedule(self, schedule):
-        class_ids = class_ids = [c[0] for c in schedule]
-        for i in range(len(class_ids)):
-            for j in range(i+1, len(class_ids)):
-                if (class_ids[i], class_ids[j]) in self._CONFLICTS:
-                    return False
-        return True
-
-    # Given a list of schedules, filter out every schedule with time conflicts. 
-    def _validate_schedules(self, schedules):
-        valid_schedules = []
-        for schedule in schedules:
-            if self._valid_schedule(schedule):
-                valid_schedules.append(schedule)
-        return valid_schedules
-
     def _get_schedule_blocks(self, schedule):
-        clean_sched = []
+        schedule_blocks = {}
         for course_class in schedule:
-            has_time_null = False
-            for time_tuple in course_class[5]:
-                start_t = time_tuple[1]
-                if start_t == 2147483647:
-                    has_time_null = True
-            if not has_time_null:
-                clean_sched.append(course_class)
-        schedule = clean_sched
-        day_times_map = {}
-        for course_class in schedule:
-            for time_tuple in course_class[5]:
-                days, start_t, end_t, _ = time_tuple
-                for day in days:
-                    if not day in day_times_map:
-                        day_times_map[day] = [(start_t, end_t)]
-                    else:
-                        day_times_map[day].append((start_t, end_t))
-        for times in day_times_map.values():
+            class_blocks = self._component_blocks[course_class[0]]
+            for day, blocks in class_blocks.items():
+                if day in schedule_blocks:
+                    for block in blocks:
+                        schedule_blocks[day].append(block)
+                else:
+                    schedule_blocks[day] = blocks
+        for times in schedule_blocks.values():
             if len(times) == 1:
                 continue
             times.sort()
@@ -181,7 +120,7 @@ class ScheduleFactory:
                     del times[i+1]
                     i -= 1
                 i += 1
-        return day_times_map
+        return schedule_blocks
 
     def _master_sort(self, schedules, prefs):
         sched_objs = []
@@ -272,16 +211,20 @@ class ScheduleFactory:
             for class_b in flat_classes:
                 _ = self._conflicts(class_a, class_b)
 
-    def unique_sample_from_prod(self, domains, cardinality, n):
-        indices = sample(range(cardinality), n)
-        items = []
-        for idx in indices:
-            item = []
-            for domain in domains:
-                item.append(domain[idx % len(domain)])
-                idx = idx // len(domain)
-            items.append(item)
-        return items
+    def _map_components_to_blocks(self, components):
+        for course_class in components:
+            for component in course_class:
+                if component[0] in self._component_blocks:
+                    continue
+                day_times_map = {}
+                for time_tuple in component[5]:
+                    days, start_t, end_t, _ = time_tuple
+                    for day in days:
+                        if not day in day_times_map:
+                            day_times_map[day] = [(start_t, end_t)]
+                        else:
+                            day_times_map[day].append((start_t, end_t))
+                self._component_blocks[component[0]] = day_times_map
 
     # Generate valid schedules for a string list of courses. First construct a
     # a list of components, where a "component" is a set of classes where each
@@ -298,7 +241,7 @@ class ScheduleFactory:
         cardinality = self._cross_prod_cardinality(components)
         print("Cross product cardinality: " + str(cardinality))
         self._build_conflicts_set(components)
-        SAT_model, SAT_constraints = SAT_solve.build_model(components, self._CONFLICTS)
+        SAT_model, _ = SAT_solve.build_model(components, self._CONFLICTS)
         if not SAT_solve.is_satisfiable(SAT_model):
             return {"schedules":[], "aliases":[],
                 "errmsg": "No schedules to display: all schedules have time conflicts."}
@@ -307,5 +250,6 @@ class ScheduleFactory:
         valid_schedules = mrv_model.get_valid_schedules()
         shuffle(valid_schedules)
         print(f"Exhaustive (MRV): {len(valid_schedules)}")
+        self._map_components_to_blocks(components)
         sorted_schedules = self._master_sort(valid_schedules[:20000], prefs)
         return {"schedules":[[c[0] for c in s._schedule] for s in sorted_schedules], "aliases":aliases}
