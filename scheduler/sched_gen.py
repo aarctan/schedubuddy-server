@@ -102,16 +102,16 @@ class ScheduleFactory:
         return cardinality
 
     def _get_schedule_blocks(self, schedule):
-        schedule_blocks = {}
+        day_times_map = {}
         for course_class in schedule:
-            class_blocks = self._component_blocks[course_class[0]]
-            for day, blocks in class_blocks.items():
-                if day in schedule_blocks:
-                    for block in blocks:
-                        schedule_blocks[day].append(block)
-                else:
-                    schedule_blocks[day] = blocks
-        for times in schedule_blocks.values():
+            for time_tuple in course_class[5]:
+                days, start_t, end_t, _ = time_tuple
+                for day in days:
+                    if not day in day_times_map:
+                        day_times_map[day] = [(start_t, end_t)]
+                    else:
+                        day_times_map[day].append((start_t, end_t))
+        for times in day_times_map.values():
             if len(times) == 1:
                 continue
             times.sort()
@@ -123,7 +123,7 @@ class ScheduleFactory:
                     del times[i+1]
                     i -= 1
                 i += 1
-        return schedule_blocks
+        return day_times_map
 
     def _master_sort(self, schedules, prefs):
         sched_objs = []
