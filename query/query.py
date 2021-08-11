@@ -21,6 +21,9 @@ class QueryExecutor:
         self._uni_json = json.load(university_json_f)
         university_json_f.close()
         logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+        self._term_class_cache = {}
+        for term_obj in self.get_terms()["objects"]:
+            self._term_class_cache[str(term_obj["term"])] = {}
     
     def get_terms(self):
         term_query = f"SELECT * FROM uOfATerm"
@@ -132,6 +135,8 @@ class QueryExecutor:
         return {"objects":json_res}
     
     def _get_class_obj(self, term:int, class_id:str):
+        if class_id in self._term_class_cache[str(term)]:
+            return self._term_class_cache[str(term)][class_id]
         class_query = f"SELECT * FROM uOfAClass WHERE term=? AND class=?"
         self._cursor.execute(class_query, (str(term), class_id))
         class_row = self._cursor.fetchone()
@@ -141,7 +146,9 @@ class QueryExecutor:
             json_res[key] = attr
         json_res["classtimes"] = self._get_classtimes(term, class_id)
         json_res["instructorName"] = self._UID_to_name(json_res["instructorUid"])
-        return {"objects":json_res}
+        ret_obj = {"objects":json_res}
+        self._term_class_cache[str(term)][class_id] = ret_obj
+        return ret_obj
     
     def _UID_to_name(self, uid:str):
         if not uid or uid=='':
