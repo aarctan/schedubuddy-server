@@ -1,5 +1,4 @@
 from random import shuffle
-import signal
 
 class MRV_Model:
     def __init__(self, components, conflicts):
@@ -10,12 +9,10 @@ class MRV_Model:
         self._conflicts = conflicts
         self._depth = len(self._components) - 1
         self.valid_schedules = []
+        self._valid_sched_count = 0
     
     def get_valid_schedules(self):
         return self.valid_schedules
-
-    def _handler(self):
-        raise Exception("TLE")
 
     def _mrv_solve(self, curr, index):
         for c in self._components[index]:
@@ -27,15 +24,11 @@ class MRV_Model:
             if not valid_pick:
                 continue
             if index == self._depth:
-                self.valid_schedules += [curr + [c]]
+                self.valid_schedules.append(tuple(curr + [c]))
+                self._valid_sched_count += 1
             if index < self._depth:
-                self._mrv_solve(curr + [c], index+1)
+                if self._valid_sched_count <= 100000:
+                    self._mrv_solve(curr + [c], index+1)
 
-    def solve(self, time_limit=2):
-        signal.signal(signal.SIGALRM, self._handler)
-        signal.alarm(time_limit)
-        try:
-            self._mrv_solve([], 0)
-        except Exception:
-            return
-
+    def solve(self):
+        self._mrv_solve([], 0)
