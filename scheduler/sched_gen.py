@@ -1,5 +1,4 @@
-import numpy as np
-from random import sample, shuffle
+from random import shuffle
 from . import MRV, SAT_solve
 
 ASSUMED_COMMUTE_TIME = 30
@@ -49,7 +48,11 @@ class ValidSchedule:
                 self.gap_err += (block_len - ideal_consec_len) **\
                     (2 if block_len <= ideal_consec_len else 3)
         self.start_err = self.start_err / len(self._blocks.keys())
-        self.time_variance = np.var(start_times)*1.5 + np.var(end_times)
+        avg_start_t = sum(start_times) / len(start_times)
+        avg_end_t = sum(end_times) / len(end_times)
+        start_t_var = sum([(t - avg_start_t) ** 2 for t in start_times]) / len(start_times)
+        end_t_var = sum([(t - avg_end_t) ** 2 for t in end_times]) / len(end_times)
+        self.time_variance = start_t_var * 1.5 + end_t_var
 
     def set_overall_rank(self):
         adjusted_combined_rank = \
@@ -251,5 +254,5 @@ class ScheduleFactory:
         shuffle(valid_schedules)
         print(f"Exhaustive (MRV): {len(valid_schedules)}")
         self._map_components_to_blocks(components)
-        sorted_schedules = self._master_sort(valid_schedules[:20000], prefs)
+        sorted_schedules = self._master_sort(valid_schedules[:10000], prefs)
         return {"schedules":[[c[0] for c in s._schedule] for s in sorted_schedules], "aliases":aliases}
