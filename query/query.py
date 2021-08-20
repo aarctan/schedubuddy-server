@@ -38,14 +38,12 @@ class QueryExecutor:
         return {"objects":json_res}
     
     def get_term_courses(self, term:int):
-        course_query = f"SELECT * FROM uOfACourse WHERE term=?"
+        course_query = f"SELECT course, asString FROM uOfACourse WHERE term=?"
         self._cursor.execute(course_query, (str(term),))
         course_rows = self._cursor.fetchall()
         json_res = []
         for course_row in course_rows:
-            json_course = {}
-            for k, attr in enumerate(course_row):
-                json_course[self._uni_json["calendar"]["uOfACourse"][k]] = attr
+            json_course = {"course": course_row[0], "asString": course_row[1]}
             json_res.append(json_course)
         return {"objects":json_res}
     
