@@ -47,8 +47,6 @@ def _write_entry(sqlcursor, table, attrs):
     var_holders = ', '.join(['?' for _ in range(len(attrs))])
     values = [tuple([str(attr[0]) if attr else None for attr in attrs.values()])]
     query = f"INSERT INTO {table} VALUES({var_holders})"
-    if table == 'uOfAClass':
-        print(values[0][5])
     sqlcursor.executemany(query, values)
 
 def make_db(term_code:str, term_db_path:str):
@@ -108,6 +106,7 @@ def cleanup(db_path):
         WHERE uOfAClassTime.course IS NULL)")
     sqlcursor.execute("DELETE FROM uOfAClass WHERE class NOT IN\
         (SELECT uOfAClassTime.class FROM uOfAClassTime)")
+    sqlcursor.execute("ALTER TABLE uOfAClassTime ADD COLUMN biweekly")
     sqlconn.commit()
     sqlconn.close()
 

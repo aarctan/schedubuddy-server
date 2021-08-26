@@ -1,3 +1,4 @@
+from multiprocessing import Pool, Process, Manager, cpu_count
 import sqlite3, os, requests
 from dateutil.parser import parse
 from bs4 import BeautifulSoup
@@ -11,15 +12,15 @@ COMPONENT_H3_CLASS = "mt-2 d-none d-md-block"
 CLASS_DIV_CLASS = "col-lg-4 col-12 pb-3"
 CLASS_STRONG_CLASS = "mb-0 mt-4"
 
+term_title_to_start_date = {}
 dirname = os.path.dirname(__file__)
 db_path = os.path.join(dirname, "../local/database.db")
 db_conn = sqlite3.connect(db_path)
 db_cursor =  db_conn.cursor()
 db_cursor.execute("SELECT termTitle, startDate FROM uOfATerm")
-term_title_to_start_date = {}
 for term_title, start_date in  db_cursor.fetchall():
     term_title_to_start_date[term_title] = parse(start_date)
-db_conn.close()
+subject_biweekly_tuples = {}
 
 def is_date(string):
     try: 
@@ -27,6 +28,11 @@ def is_date(string):
         return True
     except ValueError:
         return False
+
+def commit_biweekly_to_db(cursor, tuples):
+    for class_id, biweekly_flag in tuples:
+        query = "UPDATE uOfAClassTime SET biweekly=? WHERE class=?"
+        cursor.execute(query, (biweekly_flag, class_id))
 
 def process_raw_class_str(raw_class_str):
     raw_class_arr = raw_class_str.lstrip().rstrip().split(' ')
@@ -64,16 +70,16 @@ def is_biweekly(class_body, term_start_date):
         return 1 if delta < 13 else 2
     return 0
 
-def get_biweekly_classes(subject, catalog):
+def get_biweekly_classes(subject, catalog, title_to_start_date):
     course_url = f"{ROOT}/course/{subject}/{catalog}"
     classes_soup = BeautifulSoup(requests.get(course_url).text, "lxml")
     soup_divs = classes_soup.findAll("div", {"class": TERM_DIV_CLASS})
     biweekly_tuples = []
     for soup_div in soup_divs:
         term_name = soup_div.find("h4", {"class": TERM_H4_CLASS}).text
-        if term_name not in term_title_to_start_date:
+        if term_name not in title_to_start_date:
             continue
-        term_start_date = term_title_to_start_date[term_name]
+        term_start_date = title_to_start_date[term_name]
         soup_components = soup_div.findAll("div", {"class": COMPONENT_DIV_CLASS})
         for soup_component in soup_components:
             component_type = soup_component.find("h3", {"class": COMPONENT_H3_CLASS})
@@ -87,7 +93,6 @@ def get_biweekly_classes(subject, catalog):
                 class_body = class_soup.findAll("em")
                 biweekly_flag = is_biweekly(class_body, term_start_date)
                 if biweekly_flag > 0:
-                    print(term_name, subject, catalog, component_type, section, biweekly_flag)
                     biweekly_tuples.append((class_id, biweekly_flag))
     return biweekly_tuples
 
@@ -130,12 +135,40 @@ def get_faculties_from_catalogue():
         f"{ROOT}",
         "/catalogue/faculty")
 
-def fetch_all():
+def scrape(d, subject):
+    tuples = []
+    for catalog in get_catalogs_from_subject(subject):
+        try:
+            biweekly_tuples =\
+                get_biweekly_classes(subject, catalog, term_title_to_start_date)
+            if len(biweekly_tuples) > 0:
+                print(f"Found {len(biweekly_tuples)} biweekly classes for {subject} {catalog}")
+                tuples += biweekly_tuples
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            print(f"Errored on {subject} {catalog}")
+            print(e)
+    d[subject] = tuples
+
+# https://stackoverflow.com/questions/434287
+def chunker(seq, size):
+    return (seq[pos:pos + size] for pos in range(0, len(seq), size))
+
+if __name__ == "__main__":
     faculty_codes = get_faculties_from_catalogue()
     all_subjects = []
     for faculty_code in faculty_codes:
         all_subjects += get_subjects_from_faculty(faculty_code)
     all_subjects = list(set(all_subjects))
-    for subject in all_subjects:
-        for catalog in get_catalogs_from_subject(subject):
-            get_biweekly_classes(subject, catalog)
+    manager = Manager()
+    d = manager.dict()
+    simul_processes = cpu_count()-1 or 1
+    for chunk in chunker(all_subjects, 4):
+        job = [Process(target=scrape, args=(d, subject)) for subject in chunk]
+        _ = [p.start() for p in job]
+        _ = [p.join() for p in job]
+    for biweekly_tuples in d.values():
+        commit_biweekly_to_db(db_cursor, biweekly_tuples)
+    db_conn.commit()
+    db_conn.close()

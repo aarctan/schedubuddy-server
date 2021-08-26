@@ -72,13 +72,15 @@ class QueryExecutor:
         classtime_query = f"SELECT * FROM uOfAClassTime WHERE term=? AND class=?"
         self._cursor.execute(classtime_query, (str(term), c_class))
         classtime_rows = self._cursor.fetchall()
+        keys = self._uni_json["calendar"]["uOfAClassTime"]
         json_res = []
         for classtime_row in classtime_rows:
             json_classtime = {}
-            for k, attr in enumerate(classtime_row):
-                key = self._uni_json["calendar"]["uOfAClassTime"][k]
+            for k, attr in enumerate(classtime_row[:-1]):
+                key = keys[k]
                 if key not in ("term", "course", "class"):
                     json_classtime[key] = attr
+            json_classtime["biweekly"] = classtime_row[-1] if classtime_row[-1] else 0
             json_res.append(json_classtime)
         self._coalesce_identical_classtimes(json_res)
         return json_res
