@@ -135,21 +135,22 @@ def get_faculties_from_catalogue():
         f"{ROOT}",
         "/catalogue/faculty")
 
-def scrape(d, subject):
-    tuples = []
-    for catalog in get_catalogs_from_subject(subject):
-        try:
-            biweekly_tuples =\
-                get_biweekly_classes(subject, catalog, term_title_to_start_date)
-            if len(biweekly_tuples) > 0:
-                print(f"Found {len(biweekly_tuples)} biweekly classes for {subject} {catalog}")
-                tuples += biweekly_tuples
-        except KeyboardInterrupt:
-            break
-        except Exception as e:
-            print(f"Errored on {subject} {catalog}")
-            print(e)
-    d[subject] = tuples
+def scrape_subject_chunk(d, chunk):
+    for subject in chunk:
+        tuples = []
+        for catalog in get_catalogs_from_subject(subject):
+            try:
+                biweekly_tuples =\
+                    get_biweekly_classes(subject, catalog, term_title_to_start_date)
+                if len(biweekly_tuples) > 0:
+                    print(f"Found {len(biweekly_tuples)} biweekly classes for {subject} {catalog}")
+                    tuples += biweekly_tuples
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                print(f"Errored on {subject} {catalog}")
+                print(e)
+        d[subject] = tuples
 
 # https://stackoverflow.com/questions/434287
 def chunker(seq, size):
@@ -163,9 +164,9 @@ if __name__ == "__main__":
     all_subjects = list(set(all_subjects))
     manager = Manager()
     d = manager.dict()
-    simul_processes = cpu_count()-1 or 1
-    for chunk in chunker(all_subjects, 4):
-        job = [Process(target=scrape, args=(d, subject)) for subject in chunk]
+    simul_processes = max(1, cpu_count()-1)
+    for chunk in chunker(all_subjects, simul_processes):
+        job = [Process(target=scrape_subject_chunk, args=(d, chunk))]
         _ = [p.start() for p in job]
         _ = [p.join() for p in job]
     for biweekly_tuples in d.values():
