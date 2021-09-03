@@ -208,3 +208,19 @@ class QueryExecutor:
         json_res["schedules"] = json_schedules
         json_res["aliases"] = sched_obj["aliases"]
         return {"objects":json_res}
+    
+    def get_room_classes(self, term, room):
+        query = "SELECT class, day, startTime, endTime\
+            FROM uOfAClassTime WHERE term=? AND location=?"
+        self._cursor.execute(query, (str(term), str(room)))
+        class_and_times = self._cursor.fetchall()
+        objs = []
+        for class_and_time in class_and_times:
+            class_id = class_and_time[0]
+            query = "SELECT asString, component, section, instructorUid FROM\
+                uOfAClass WHERE term=? AND class=?"
+            self._cursor.execute(query, (str(term), str(class_id)))
+            class_info = list(self._cursor.fetchone())
+            class_info[3] = self._UID_to_name(class_info[3])
+            objs.append(class_info + list(class_and_time))
+        return objs
