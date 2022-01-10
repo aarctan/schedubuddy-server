@@ -13,7 +13,7 @@ def str_t_to_int(str_t):
 class QueryExecutor:
     def __init__(self):
         dirname = os.path.dirname(__file__)
-        db_path = os.path.join(dirname, "../local/database.db")
+        db_path = os.path.join(dirname, "../local/cataloguedb.db")
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._cursor = self._conn.cursor()
         uni_format_path = os.path.join(dirname, "../formats/uAlberta.json")
@@ -145,18 +145,10 @@ class QueryExecutor:
             key = self._uni_json["calendar"]["uOfAClass"][k]
             json_res[key] = attr
         json_res["classtimes"] = self._get_classtimes(term, class_id)
-        json_res["instructorName"] = self._UID_to_name(json_res["instructorUid"])
+        json_res["instructorName"] = json_res["instructorUid"]
         ret_obj = {"objects":json_res}
         self._term_class_cache[str(term)][class_id] = ret_obj
         return ret_obj
-    
-    def _UID_to_name(self, uid:str):
-        if not uid or uid=='':
-            return None
-        name_query = f"SELECT Name from uOfANames WHERE instructorUid=?"
-        self._cursor.execute(name_query, (str(uid),))
-        name = self._cursor.fetchone()
-        return name[0]
     
     def get_course_name(self, term, course_id):
         course_query = "SELECT asString from uOfACourse where term=? AND course=?"
@@ -221,6 +213,6 @@ class QueryExecutor:
                 uOfAClass WHERE term=? AND class=?"
             self._cursor.execute(query, (str(term), str(class_id)))
             class_info = list(self._cursor.fetchone())
-            class_info[3] = self._UID_to_name(class_info[3])
+            class_info[3] = class_info[3]
             objs.append(class_info + list(class_and_time))
         return objs
