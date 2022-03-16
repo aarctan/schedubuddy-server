@@ -47,6 +47,18 @@ class QueryExecutor:
             json_res.append(json_course)
         return {"objects":json_res}
     
+    def get_term_rooms(self, term:int):
+        course_query = f"SELECT DISTINCT location FROM uOfAClassTime WHERE term=?"
+        self._cursor.execute(course_query, (str(term),))
+        location_rows = self._cursor.fetchall()
+        json_res = []
+        for location_row in location_rows:
+            if not location_row[0]:
+                continue
+            json_room = {"location": location_row[0]}
+            json_res.append(json_room)
+        return {"objects":json_res}
+
     def _coalesce_identical_classtimes(self, classtimes):
         res = []
         i = 0
@@ -134,7 +146,7 @@ class QueryExecutor:
             return None
         return {"objects":json_res}
     
-    def _get_class_obj(self, term:int, class_id:str):
+    def _get_class_obj(self, term:int, class_id:str, loc_filter=None):
         if class_id in self._term_class_cache[str(term)]:
             return self._term_class_cache[str(term)][class_id]
         class_query = f"SELECT * FROM uOfAClass WHERE term=? AND class=?"
@@ -144,7 +156,15 @@ class QueryExecutor:
         for k, attr in enumerate(class_row):
             key = self._uni_json["calendar"]["uOfAClass"][k]
             json_res[key] = attr
-        json_res["classtimes"] = self._get_classtimes(term, class_id)
+        json_res["classtimes"] = []
+        classtimes = self._get_classtimes(term, class_id)
+        if loc_filter:
+            for classtime in classtimes:
+                if classtime["location"] == loc_filter:
+                    print(classtime)
+                    json_res["classtimes"].append(classtime)
+        else:
+            json_res["classtimes"] = classtimes
         json_res["instructorName"] = json_res["instructorUid"]
         ret_obj = {"objects":json_res}
         self._term_class_cache[str(term)][class_id] = ret_obj
@@ -202,17 +222,14 @@ class QueryExecutor:
         return {"objects":json_res}
     
     def get_room_classes(self, term, room):
-        query = "SELECT class, day, startTime, endTime\
-            FROM uOfAClassTime WHERE term=? AND location=?"
+        query = "SELECT class FROM uOfAClassTime WHERE term=? AND location=?"
         self._cursor.execute(query, (str(term), str(room)))
-        class_and_times = self._cursor.fetchall()
-        objs = []
-        for class_and_time in class_and_times:
-            class_id = class_and_time[0]
-            query = "SELECT asString, component, section, instructorUid FROM\
-                uOfAClass WHERE term=? AND class=?"
-            self._cursor.execute(query, (str(term), str(class_id)))
-            class_info = list(self._cursor.fetchone())
-            class_info[3] = class_info[3]
-            objs.append(class_info + list(class_and_time))
-        return objs
+        classes = self._cursor.fetchall()
+        json_res = {}
+        json_sched = []
+        print(classes)
+        for class_id in classes:
+            json_sched.append(self._get_class_obj(term, class_id[0], room))
+        json_res["schedules"] = [json_sched]
+        json_res["aliases"] = {}
+        return {"objects": json_res}

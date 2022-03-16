@@ -48,6 +48,23 @@ def api_gen_schedules():
     response = jsonify(qe.get_schedules(term_id, course_id_list, prefs, sf))
     return response
 
+@app.route("/api/v1/rooms/", methods=['GET'])
+def api_rooms():
+    args = request.args
+    if "term" not in args:
+        return
+    term_id = int(args["term"])
+    return jsonify(qe.get_term_rooms(term_id))
+
+@app.route("/api/v1/room-sched/", methods=['GET'])
+def api_room_sched():
+    args = request.args
+    required_args = ("term", "room")
+    for required_arg in required_args:
+        if required_arg not in args:
+            return
+    return jsonify(qe.get_room_classes(args["term"], args["room"]))
+
 Compress(app)
 if __name__ == "__main__":
     app.run()
