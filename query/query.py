@@ -161,7 +161,6 @@ class QueryExecutor:
         if loc_filter:
             for classtime in classtimes:
                 if classtime["location"] == loc_filter:
-                    print(classtime)
                     json_res["classtimes"].append(classtime)
         else:
             json_res["classtimes"] = classtimes
@@ -222,12 +221,12 @@ class QueryExecutor:
         return {"objects":json_res}
     
     def get_room_classes(self, term, room):
+        print(f"Room '{room}' lookup in term {term}")
         query = "SELECT class FROM uOfAClassTime WHERE term=? AND location=?"
         self._cursor.execute(query, (str(term), str(room)))
         classes = self._cursor.fetchall()
         json_res = {}
         json_sched = []
-        print(classes)
         for class_id in classes:
             json_sched.append(self._get_class_obj(term, class_id[0], room))
         json_res["schedules"] = [json_sched]
