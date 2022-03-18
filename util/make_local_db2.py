@@ -1,7 +1,8 @@
 import re, os, sqlite3, json, time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 enum_weekday = {'M':0, 'T':1, 'W':2, 'H':3, 'F':4, 'S':5, 'U':6}
+term_start_dates = {}
 
 def days_in_date_range(day, range_start, range_end):
   # Returns a list of dates that a 'day', e.g. 'M', occurs in the range of dates
@@ -55,6 +56,7 @@ def process_and_write(raw_class_obj, db_cursor):
   instructors = []
   classtimes = []
   dsel_dates_map = {}
+  potentially_biweekly = True
   for em in embeds:
     em = em.replace('\n', ' ')
     if re.search("^Primary Instructor: \w+", em):
@@ -62,6 +64,7 @@ def process_and_write(raw_class_obj, db_cursor):
       instructors.append(instructor)
     # Range of dates, e.g. "2022-01-05 - 2022-04-08 MWF 12:00 - 12:50 (CCIS L2-190)"
     elif re.search("\d+-\d+-\d+ - \d+-\d+-\d+ \w+ \d+:\d+ - \d+:\d+", em):
+      potentially_biweekly = False
       start_date, end_date = re.findall("\d+-\d+-\d+", em)
       days, start_t, _, end_t = re.findall("\w+ \d+:\d+ - \d+:\d+", em)[0].split(' ')
       location = em[em.find("(")+1 : em.find(")")]
@@ -94,12 +97,23 @@ def process_and_write(raw_class_obj, db_cursor):
     return
   for dsel in dsel_dates_map:
     if len(dsel_dates_map[dsel]) >= 4:
+      biweekly = None
+      if potentially_biweekly and str(termId) in term_start_dates:
+        biweekly = True
+        datetimes = sorted(list(dsel_dates_map[dsel]))
+        for i in range(len(datetimes) - 1):
+          dt1, dt2 = datetimes[i], datetimes[i + 1]
+          if (dt2 - dt1).days < 14:
+            biweekly = None
+        if biweekly: # check if biweekly flag is 1 or 2
+          biweekly = 1 if (datetimes[0] - term_start_dates[str(termId)]).days <= 7 else 2
+      biweekly = None # temporarily disable biweekly classes
       day, start_t, end_t, location = dsel
       start_t = time.strftime("%I:%M %p", time.strptime(start_t, '%H:%M'))
       end_t = time.strftime("%I:%M %p", time.strptime(end_t, '%H:%M'))
       query = "INSERT INTO uOfAClassTime Values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       db_cursor.execute(query, (termId, courseId, classId, location, None, None,
-        day, start_t, end_t, None))
+        day, start_t, end_t, biweekly))
 
   # Write a new class for this course
   query = "INSERT INTO uOfAClass Values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,\
@@ -118,7 +132,7 @@ def initialize_db(db_cursor):
     subjectTitle TEXT, courseDescription TEXT, career TEXT, faculty TEXT,\
     facultyCode TEXT, department TEXT, departmentCode TEXT)")
   db_cursor.execute(f"CREATE TABLE uOfAClass(term TEXT, course TEXT,\
-    class TEXT UNIQUE, component TEXT, section TEXT, asString TEXT, instructorUid TEXT,\
+    class TEXT, component TEXT, section TEXT, asString TEXT, instructorUid TEXT,\
     campus TEXT, location TEXT, capacity TEXT, classStatus TEXT, classNotes TEXT,\
     classType TEXT, consent TEXT, startDate TEXT, endDate TEXT, enrollStatus TEXT,\
     gradingBasis TEXT, examStatus TEXT, examDate TEXT, examStartTime TEXT,\
@@ -126,6 +140,16 @@ def initialize_db(db_cursor):
   db_cursor.execute(f"CREATE TABLE uOfAClassTime(term TEXT, course TEXT,\
     class TEXT, location TEXT, startDate TEXT, endDate TEXT, day TEXT, startTime TEXT,\
     endTime TEXT, biweekly TEXT)")
+
+def retrieve_term_start_dates():
+  # Assume that (biweekly) labs do not occur on the first week. Therefore, they
+  # must start on the monday after the first week. All labs during this week
+  # are assumed to have a biweekly flag of 1, and ones that start the week
+  # after the first week of labs will have a biweekly flag of 2.
+  fall_first = datetime.strptime("September 1, 2022", '%B %d, %Y')
+  winter_first = datetime.strptime("January 5, 2023", '%B %d, %Y')
+  term_start_dates["1810"] = fall_first + timedelta((0 - fall_first.weekday()) % 7)
+  term_start_dates["1820"] = winter_first + timedelta((0 - winter_first.weekday()) % 7)
 
 def db_update():
   dirname = os.path.dirname(__file__)
@@ -138,6 +162,7 @@ def db_update():
   db_conn = sqlite3.connect(db_path)
   db_cursor = db_conn.cursor()
   initialize_db(db_cursor)
+  retrieve_term_start_dates()
   for raw_class_obj in data:
     process_and_write(raw_class_obj, db_cursor)
   db_cursor.execute("DELETE FROM uOfACourse WHERE course IN\
