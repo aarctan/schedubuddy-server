@@ -80,13 +80,15 @@ class ScheduleFactory:
                 start_t, end_t = classtime[1], classtime[2]
                 for day in classtime[0]:
                     day_mult = self._day_index[day]
-                    ranges.append((start_t + 2400*day_mult, end_t + 2400*day_mult))
+                    ranges.append((start_t + 2400*day_mult, end_t + 2400*day_mult, classtime[4]))
         ranges.sort(key=lambda t: t[0])
         for i in range(len(ranges)-1):
             if ranges[i][1] > ranges[i+1][0]:
-                self._CONFLICTS.add((class_a_id, class_b_id))
-                self._CONFLICTS.add((class_b_id, class_a_id))
-                return True
+                biweekly1, biweekly2 = int(ranges[i][2]), int(ranges[i+1][2])
+                if biweekly1 == 0 or biweekly2 == 0 or (biweekly1 == biweekly2):
+                    self._CONFLICTS.add((class_a_id, class_b_id))
+                    self._CONFLICTS.add((class_b_id, class_a_id))
+                    return True
         return False
 
     def _json_sched(self, sched):
@@ -105,7 +107,7 @@ class ScheduleFactory:
         day_times_map = {}
         for course_class in schedule:
             for time_tuple in course_class[5]:
-                days, start_t, end_t, _ = time_tuple
+                days, start_t, end_t, _, biweekly = time_tuple
                 for day in days:
                     if not day in day_times_map:
                         day_times_map[day] = [(start_t, end_t)]
@@ -170,7 +172,8 @@ class ScheduleFactory:
                     class_comp_str = component_class[1] + ' ' + component_class[2] # e.g., LEC A1
                     class_times = []
                     for i in range(len(component_class[5])):
-                        class_times.append((component_class[5][i][:3]))
+                        ct_i = component_class[5][i]
+                        class_times.append((ct_i[0], ct_i[1], ct_i[2], ct_i[4]))
                     class_times = tuple(class_times)
                     if class_times in classtime_to_first_class:
                         first_class = classtime_to_first_class[class_times]
@@ -199,7 +202,7 @@ class ScheduleFactory:
                     ct = course_class["classtimes"][i]
                     times.append((ct["day"],
                         str_t_to_int(ct["startTime"]), str_t_to_int(ct["endTime"]),
-                        course_class["location"]))
+                        course_class["location"], ct["biweekly"]))
                 class_dict.append(times)
                 if component in course:
                     course[component].append(class_dict)
@@ -221,7 +224,7 @@ class ScheduleFactory:
                     continue
                 day_times_map = {}
                 for time_tuple in component[5]:
-                    days, start_t, end_t, _ = time_tuple
+                    days, start_t, end_t, _, biweekly = time_tuple
                     for day in days:
                         if not day in day_times_map:
                             day_times_map[day] = [(start_t, end_t)]

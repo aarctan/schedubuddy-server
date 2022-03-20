@@ -107,7 +107,7 @@ def process_and_write(raw_class_obj, db_cursor):
             biweekly = None
         if biweekly: # check if biweekly flag is 1 or 2
           biweekly = 1 if (datetimes[0] - term_start_dates[str(termId)]).days <= 7 else 2
-      biweekly = None # temporarily disable biweekly classes
+      #biweekly = None # temporarily disable biweekly classes
       day, start_t, end_t, location = dsel
       start_t = time.strftime("%I:%M %p", time.strptime(start_t, '%H:%M'))
       end_t = time.strftime("%I:%M %p", time.strptime(end_t, '%H:%M'))
