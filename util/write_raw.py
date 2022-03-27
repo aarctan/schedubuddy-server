@@ -21,25 +21,24 @@ def get_link_codes_with_prefix(url, prefix):
     for soup in soups:
         if soup.has_attr("href"):
             link = soup["href"]
-            if link[:len(prefix)] == prefix:
-                code = link[len(prefix)+1:].upper()
+            if link[: len(prefix)] == prefix:
+                code = link[len(prefix) + 1 :].upper()
                 if not code:
                     continue
                 codes.append(code)
     return codes
 
+
 logger = logging.basicConfig()
 
 
 def get_faculties_from_catalogue():
-    return get_link_codes_with_prefix(
-        f"{ROOT}",
-        "/catalogue/faculty")
+    return get_link_codes_with_prefix(f"{ROOT}", "/catalogue/faculty")
+
 
 def get_subjects_from_faculty(faculty_code):
-    return get_link_codes_with_prefix(
-        f"{ROOT}/faculty/{faculty_code}",
-        "/catalogue/course")
+    return get_link_codes_with_prefix(f"{ROOT}/faculty/{faculty_code}", "/catalogue/course")
+
 
 # Returns a list of catalogs from a subject, e.g. "CMPUT" -> ['101', '174', ...]
 def get_catalogs_from_subject(subject):
@@ -47,20 +46,21 @@ def get_catalogs_from_subject(subject):
     course_titles = courses_soup.select("h2", {"class": CATALOG_H2_CLASS})
     catalogs = []
     for course_title in course_titles:
-        catalog = course_title.text.lstrip()[len(subject)+1:].split(' ')[0]
-        if re.match(r'\d{3}[A-Z]?', catalog, re.IGNORECASE):
+        catalog = course_title.text.lstrip()[len(subject) + 1 :].split(" ")[0]
+        if re.match(r"\d{3}[A-Z]?", catalog, re.IGNORECASE):
             catalogs.append(catalog)
         else:
             # todo: warn we found an element, but failed verify that it's a course number?
             pass
     return catalogs
 
+
 def write_raw(subject, catalog, fp):
     def process_raw_class_str(raw_class_str):
-        raw = raw_class_str.lstrip().rstrip().split(' ')
+        raw = raw_class_str.lstrip().rstrip().split(" ")
         lec, section, class_id = raw[0][:3].upper(), raw[1], raw[2]
-        id_cutoff = class_id.find('\n')
-        class_id = class_id[1:(id_cutoff-1 if id_cutoff != -1 else -1)]
+        id_cutoff = class_id.find("\n")
+        class_id = class_id[1 : (id_cutoff - 1 if id_cutoff != -1 else -1)]
         return lec, section, class_id
 
     class_objs = []
@@ -69,7 +69,7 @@ def write_raw(subject, catalog, fp):
     soup_divs = classes_soup.findAll("div", {"class": TERM_DIV_CLASS})
     for soup_div in soup_divs:
         term_header = soup_div.find("h4", {"class": TERM_H4_CLASS})
-        term_name, term_id = term_header.text, term_header['id']
+        term_name, term_id = term_header.text, term_header["id"]
         soup_components = soup_div.findAll("div", {"class": COMPONENT_DIV_CLASS})
         for soup_component in soup_components:
             component_type = soup_component.find("h3", {"class": COMPONENT_H3_CLASS})
@@ -80,16 +80,27 @@ def write_raw(subject, catalog, fp):
             for class_soup in class_soups:
                 raw_class_str = class_soup.find("strong", {"class": CLASS_STRONG_CLASS}).text
                 _, section, class_id = process_raw_class_str(raw_class_str)
-                raw_class_str = raw_class_str.replace('\n', ' ').lstrip().rstrip()
+                raw_class_str = raw_class_str.replace("\n", " ").lstrip().rstrip()
                 class_body = class_soup.findAll("em")
                 embeds = [str(body.text).lstrip().rstrip() for body in class_body]
-                write_obj = {"term": term_id, "termName": term_name, "subject": subject,
-                    "header": raw_class_str, "catalog": catalog, "section": section,
-                    "classId": class_id, "component": component_type, "embeds":embeds}
+                write_obj = {
+                    "term": term_id,
+                    "termName": term_name,
+                    "subject": subject,
+                    "header": raw_class_str,
+                    "catalog": catalog,
+                    "section": section,
+                    "classId": class_id,
+                    "component": component_type,
+                    "embeds": embeds,
+                }
                 class_objs.append(write_obj)
     return class_objs
 
+
 debug = False
+
+
 def main():
     dirname = os.path.dirname(__file__)
     raw_file_path = os.path.join(dirname, "../local/raw.json")
@@ -99,16 +110,16 @@ def main():
     raw_file = open(raw_file_path, "a")
     subjects = []
     if debug:
-        subjects = ['CHEM']
+        subjects = ["CHEM"]
     else:
-        faculty_codes = get_faculties_from_catalogue() # ['ED', 'EN', 'SC', ...]
+        faculty_codes = get_faculties_from_catalogue()  # ['ED', 'EN', 'SC', ...]
         subjects = []
         for faculty_code in faculty_codes:
             subjects += get_subjects_from_faculty(faculty_code)
-        subjects = list(set(subjects)) # ['CHEM, 'CMPUT', 'MATH', ...]
+        subjects = list(set(subjects))  # ['CHEM, 'CMPUT', 'MATH', ...]
     raw_data = []
     for subject in subjects:
-        course_nums = set(get_catalogs_from_subject(subject)) # ['101', '174', ...]
+        course_nums = set(get_catalogs_from_subject(subject))  # ['101', '174', ...]
         print(course_nums)
         for course_num in course_nums:
             raw_objs = write_raw(subject, course_num, raw_file)
@@ -119,4 +130,5 @@ def main():
     raw_file.write(json.dumps(raw_data, sort_keys=True, indent=4))
     raw_file.close()
 
-main()
+if __name__ == '__main__':
+    main()
