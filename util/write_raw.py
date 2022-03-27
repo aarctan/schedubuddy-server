@@ -1,10 +1,13 @@
+import json
 import logging
+import os
+import re
+import requests
+import time
 
-import dateutil.parser as dparser
-import re, requests, os, json, time
 from bs4 import BeautifulSoup
 
-ROOT = "https://apps.ualberta.ca/catalogue"
+ROOT_URL = "https://apps.ualberta.ca/catalogue"
 CATALOG_H2_CLASS = "flex-grow-1"
 TERM_DIV_CLASS = "card mt-4"
 TERM_H4_CLASS = "m-0 flex-grow-1"
@@ -12,6 +15,7 @@ COMPONENT_DIV_CLASS = "col-12"
 COMPONENT_H3_CLASS = "mt-2 d-none d-md-block"
 CLASS_DIV_CLASS = "col-lg-4 col-12 pb-3"
 CLASS_STRONG_CLASS = "mb-0 mt-4"
+
 
 # Returns a list of codes from a list on a webpage (i.e., faculty or subject codes)
 def get_link_codes_with_prefix(url, prefix):
@@ -33,21 +37,21 @@ logger = logging.basicConfig()
 
 
 def get_faculties_from_catalogue():
-    return get_link_codes_with_prefix(f"{ROOT}", "/catalogue/faculty")
+    return get_link_codes_with_prefix(f"{ROOT_URL}", "/catalogue/faculty")
 
 
 def get_subjects_from_faculty(faculty_code):
-    return get_link_codes_with_prefix(f"{ROOT}/faculty/{faculty_code}", "/catalogue/course")
+    return get_link_codes_with_prefix(f"{ROOT_URL}/faculty/{faculty_code}", "/catalogue/course")
 
 
 # Returns a list of catalogs from a subject, e.g. "CMPUT" -> ['101', '174', ...]
 def get_catalogs_from_subject(subject):
-    courses_soup = BeautifulSoup(requests.get(f"{ROOT}/course/{subject}").text, "lxml")
+    courses_soup = BeautifulSoup(requests.get(f"{ROOT_URL}/course/{subject}").text, "lxml")
     course_titles = courses_soup.select("h2", {"class": CATALOG_H2_CLASS})
     catalogs = []
     for course_title in course_titles:
         catalog = course_title.text.lstrip()[len(subject) + 1 :].split(" ")[0]
-        if re.match(r"\d{3}[A-Z]?", catalog, re.IGNORECASE):
+        if re.match(r"\d{3,}[A-Z]?", catalog, re.IGNORECASE):
             catalogs.append(catalog)
         else:
             # todo: warn we found an element, but failed verify that it's a course number?
@@ -64,7 +68,7 @@ def write_raw(subject, catalog, fp):
         return lec, section, class_id
 
     class_objs = []
-    course_url = f"{ROOT}/course/{subject}/{catalog}"
+    course_url = f"{ROOT_URL}/course/{subject}/{catalog}"
     classes_soup = BeautifulSoup(requests.get(course_url).text, "lxml")
     soup_divs = classes_soup.findAll("div", {"class": TERM_DIV_CLASS})
     for soup_div in soup_divs:
@@ -130,5 +134,6 @@ def main():
     raw_file.write(json.dumps(raw_data, sort_keys=True, indent=4))
     raw_file.close()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
