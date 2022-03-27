@@ -1,3 +1,5 @@
+import logging
+
 import dateutil.parser as dparser
 import re, requests, os, json, time
 from bs4 import BeautifulSoup
@@ -26,6 +28,9 @@ def get_link_codes_with_prefix(url, prefix):
                 codes.append(code)
     return codes
 
+logger = logging.basicConfig()
+
+
 def get_faculties_from_catalogue():
     return get_link_codes_with_prefix(
         f"{ROOT}",
@@ -46,7 +51,7 @@ def get_catalogs_from_subject(subject):
         if re.match(r'\d{3}[A-Z]?', catalog, re.IGNORECASE):
             catalogs.append(catalog)
         else:
-            # todo: warn we found an element, but didn't verify that it's a course number?
+            # todo: warn we found an element, but failed verify that it's a course number?
             pass
     return catalogs
 
