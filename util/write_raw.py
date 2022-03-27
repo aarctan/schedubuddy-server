@@ -3,7 +3,7 @@ import re, requests, os, json, time
 from bs4 import BeautifulSoup
 
 ROOT = "https://apps.ualberta.ca/catalogue"
-CATALOG_H4_CLASS = "flex-grow-1"
+CATALOG_H2_CLASS = "flex-grow-1"
 TERM_DIV_CLASS = "card mt-4"
 TERM_H4_CLASS = "m-0 flex-grow-1"
 COMPONENT_DIV_CLASS = "col-12"
@@ -39,11 +39,15 @@ def get_subjects_from_faculty(faculty_code):
 # Returns a list of catalogs from a subject, e.g. "CMPUT" -> ['101', '174', ...]
 def get_catalogs_from_subject(subject):
     courses_soup = BeautifulSoup(requests.get(f"{ROOT}/course/{subject}").text, "lxml")
-    course_titles = courses_soup.findAll("h4", {"class": CATALOG_H4_CLASS})
+    course_titles = courses_soup.select("h2", {"class": CATALOG_H2_CLASS})
     catalogs = []
     for course_title in course_titles:
         catalog = course_title.text.lstrip()[len(subject)+1:].split(' ')[0]
-        catalogs.append(catalog)
+        if re.match(r'\d{3}[A-Z]?', catalog, re.IGNORECASE):
+            catalogs.append(catalog)
+        else:
+            # todo: warn we found an element, but didn't verify that it's a course number?
+            pass
     return catalogs
 
 def write_raw(subject, catalog, fp):
