@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 import time
@@ -7,7 +8,9 @@ from typing import Set
 import requests
 from lxml import html
 
-log = logging.getLogger(Path(__file__).stem)
+logging.basicConfig(format="{asctime} {levelname}:{lineno} {message}", style="{")
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 ROOT_COURSE_DIR_URL = "https://apps.ualberta.ca/catalogue"
 KNOWN_COMPONENT_TYPES = {"LEC", "SEM", "LAB"}
@@ -49,7 +52,7 @@ def get_class_info(subject: str, catalogNum: str):
     course_url = f"{ROOT_COURSE_DIR_URL}/course/{subject}/{catalogNum}"
     parsed_class_page = html.fromstring(requests.get(course_url).content)
     class_base = {
-        "catalogNum": catalogNum,
+        "catalog": catalogNum,
         "subject": subject,
     }
 
@@ -84,7 +87,7 @@ def get_class_info(subject: str, catalogNum: str):
 
 def main():
     raw_file_output = Path(__file__) / ".." / "local" / "raw.json"
-    log.info("retrieving faculty info")
+    logger.info("retrieving faculty info")
     faculty_codes = get_faculties_from_catalogue()  # ['ED', 'EN', 'SC', ...]
     subjects = set()
     for faculty_code in faculty_codes:
@@ -93,16 +96,15 @@ def main():
     course_data = []
     for subject in subjects:
         course_nums = get_catalogs_from_subject(subject)  # ['101', '174', ...]
-        log.info(f"retrieved {len(course_nums)} courses for {subject}")
+        logger.info(f"retrieved {len(course_nums)} courses for {subject}")
         for num in course_nums:
             scheduling = get_class_info(subject, num)
-            for raw_obj in scheduling:
-                course_data.append(raw_obj)
-            print(f"Read {subject} {num}")
-        time.sleep(1)
-    raw_file.write(json.dumps(course_data, sort_keys=True, indent=4))
-    raw_file.close()
+            course_data.extend(scheduling)
+            logger.info(f"found {len(scheduling)} term schedules for {subject} {num}")
+
+    with open(raw_file_output) as out:
+        json.dump(out, course_data, sort_keys=True, indent=4)
 
 
 if __name__ == '__main__':
-    get_class_info("CMPUT", "175")
+    main()
