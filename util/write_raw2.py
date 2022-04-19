@@ -13,8 +13,13 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 ROOT_COURSE_DIR_URL = "https://apps.ualberta.ca/catalogue"
-KNOWN_COMPONENT_TYPES = {"LEC", "SEM", "LAB"}
-
+KNOWN_COMPONENT_TYPES = {
+    "LEC",  # lecture
+    "SEM",  # seminar
+    "LAB",
+    "CLI",  # clinical
+    "THE",  # thesis
+}
 
 def get_faculties_from_catalogue() -> Set[str]:
     return get_link_codes_with_prefix(f"{ROOT_COURSE_DIR_URL}", "/catalogue/faculty/")
@@ -74,7 +79,7 @@ def get_class_info(subject: str, catalogNum: str):
 
             for row in component.cssselect("tbody > tr"):
                 cols = row.cssselect("td")
-                section_code_search = re.search(r"(LECTURE|SEMINAR|LAB)\s+(\w+)\s+\((\d+)\)", cols[0].text_content(), re.IGNORECASE)
+                section_code_search = re.search(r"(LECTURE|SEMINAR|LAB|CLINICAL)\s+(\w+)\s+\((\d+)\)", cols[0].text_content(), re.IGNORECASE)
                 class_objs.append({
                     **class_component_base,
                     # note: re groups 1 based indexing
@@ -87,8 +92,9 @@ def get_class_info(subject: str, catalogNum: str):
 
 def main():
     raw_file_output = Path(__file__) / ".." / "local" / "raw.json"
-    logger.info("retrieving faculty info")
     faculty_codes = get_faculties_from_catalogue()  # ['ED', 'EN', 'SC', ...]
+    logger.info("retrieving faculty info")
+
     subjects = set()
     for faculty_code in faculty_codes:
         subjects.update(get_subjects_from_faculty(faculty_code))
