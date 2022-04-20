@@ -90,13 +90,14 @@ def get_class_info(subject: str, catalogNum: str):
                 continue
 
             for row in component.cssselect("tbody > tr"):
-                cols = row.cssselect("td")
+                cols = row.cssselect("td > span")
                 section_code_search = re.search(r"(LECTURE|SEMINAR|LAB|CLINICAL|THESIS)\s+(\w+)\s+\((\d+)\)", cols[0].text_content(), re.IGNORECASE)
                 class_objs.append({
                     **class_component_base,
                     # note: re groups 1 based indexing
                     "section": section_code_search.group(2),
                     "classId": section_code_search.group(3),
+                    "embeds": [re.sub(r"\s{2,}", " ", x.text_content()) for x in cols[1:]]
                 })
 
     return class_objs
@@ -104,7 +105,6 @@ def get_class_info(subject: str, catalogNum: str):
 
 def main():
 
-    raw_file_output = Path(__file__) / "local" / "raw.json"
     faculty_codes = get_faculties_from_catalogue()  # ['ED', 'EN', 'SC', ...]
     logger.info("retrieving faculty info")
 
@@ -118,9 +118,10 @@ def main():
         logger.info(f"processing {len(course_nums)} courses in {subject}")
         for num in course_nums:
             scheduling = get_class_info(subject, num)
-            course_data.extend(scheduling)
             logger.debug(f"found {len(scheduling)} term schedules for {subject} {num}")
+            course_data.extend(scheduling)
 
+    raw_file_output = Path(__file__).parents[1] / "local" / "raw.json"
     logger.info(f"writing {len(course_data)} courses schedules to {raw_file_output}")
     with open(raw_file_output, mode="w") as out:
         json.dump(course_data, out, sort_keys=True, indent=4)
