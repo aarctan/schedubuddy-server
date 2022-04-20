@@ -58,13 +58,6 @@ def get_catalogs_from_subject(subject: str) -> Set[str]:
 
 
 def get_class_info(subject: str, catalogNum: str):
-    def process_raw_class_str(raw_class_str):
-        raw = raw_class_str.lstrip().rstrip().split(" ")
-        lec, section, class_id = raw[0][:3].upper(), raw[1], raw[2]
-        id_cutoff = class_id.find("\n")
-        class_id = class_id[1: (id_cutoff - 1 if id_cutoff != -1 else -1)]
-        return lec, section, class_id
-
     class_objs = []
     course_url = f"{ROOT_COURSE_DIR_URL}/course/{subject}/{catalogNum}"
     parsed_class_page = html.fromstring(s.get(course_url).content)
@@ -72,7 +65,6 @@ def get_class_info(subject: str, catalogNum: str):
         "catalog": catalogNum,
         "subject": subject,
     }
-
 
     for term_div in parsed_class_page.cssselect(".content .container .card"):
         term_header = term_div.cssselect(".card-header")[0]
