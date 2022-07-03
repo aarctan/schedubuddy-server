@@ -27,8 +27,7 @@ def process_and_write(raw_class_obj, db_cursor):
   component = raw_class_obj["component"]
   section = raw_class_obj["section"]
   embeds = raw_class_obj["embeds"]
-  header = raw_class_obj["header"]
-  instructionMode = "Internet" if "online" in header.lower() else "In Person"
+  instructionMode = "In Person"
 
   # Write the term if it does not exist
   query = "INSERT OR IGNORE INTO uOfATerm VALUES (?, ?, ?, ?)"
