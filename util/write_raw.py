@@ -94,12 +94,13 @@ def write_raw(subject, catalog, fp):
                 candidate_row = [rows[i][row_itr] for i in range(3)]
                 for raw_candidate in candidate_row:
                     # col Section for class section and class id
+                    #print(raw_candidate)
                     if component_type in raw_candidate:
-                        section = raw_candidate.split(' ')[-2]
+                        section = raw_candidate.split(' ')[1].strip()
                         class_id = raw_candidate.split(' ')[-1][1:-1]
                     # col Instructor(s); only deal with primary instructor
-                    elif "Primary Instructor" in raw_candidate:
-                        instructor_name = col.find("a").text
+                    elif "Primary Instructor: " in raw_candidate:
+                        instructor_name = raw_candidate[len("Primary Instructor: ")+1:]
                         embeds.append(f"Primary Instructor: {instructor_name}")
                     # col for Dates + Times (embed)
                     elif re.search('\d+-\d+-\d+ \d+:\d+ - \d+:\d+', raw_candidate):
@@ -127,7 +128,7 @@ def write_raw(subject, catalog, fp):
                 break
     return class_objs
 
-debug = True
+debug = False
 def main():
     dirname = os.path.dirname(__file__)
     raw_file_path = os.path.join(dirname, "../local/raw.json")
@@ -138,7 +139,7 @@ def main():
     subjects = []
     # disable debug mode
     if debug:
-        subjects = ['PSYCO']
+        subjects = ['NURS']
     else:
         print(f"Reading faculties from catalog...")
         faculty_codes = get_faculties_from_catalogue() # ['ED', 'EN', 'SC', ...]
@@ -156,16 +157,15 @@ def main():
         course_nums = set(get_catalogs_from_subject(subject)) # ['101', '174', ...]
         print(f"Reading {len(course_nums)} course{'s' if len(course_nums) != 1 else ''} in {subject}...")
         for course_num in course_nums:
-            '''
-            if debug:
-                if course_num != "101":
-                    continue
-            '''
+            #if course_num != "330":
+            #   continue
+            print(f"Reading {subject} {course_num}")
             raw_objs = write_raw(subject, course_num, raw_file)
             print(json.dumps(raw_objs, indent=4))
             for raw_obj in raw_objs:
                 raw_data.append(raw_obj)
             print(f"Read {subject} {course_num}")
+            time.sleep(1)
         print(f"Done reading {subject}.\n")
     raw_file.write(json.dumps(raw_data, sort_keys=True, indent=4))
     raw_file.close()

@@ -247,13 +247,12 @@ class ScheduleFactory:
         cardinality = self._cross_prod_cardinality(components)
         print("Cross product cardinality: " + str(cardinality))
         self._build_conflicts_set(components)
-        SAT_model, _ = SAT_solve.build_model(components, self._CONFLICTS)
-        if not SAT_solve.is_satisfiable(SAT_model):
-            return {"schedules":[], "aliases":[],
-                "errmsg": "No schedules to display: all schedules have time conflicts."}
         mrv_model = MRV.MRV_Model(components, self._CONFLICTS)
         mrv_model.solve()
         valid_schedules = mrv_model.get_valid_schedules()
+        if len(valid_schedules) == 0:
+            return {"schedules":[], "aliases":[],
+                "errmsg": "No schedules to display: all schedules have time conflicts."}
         shuffle(valid_schedules)
         print(f"Exhaustive (MRV): {len(valid_schedules)}")
         self._map_components_to_blocks(components)

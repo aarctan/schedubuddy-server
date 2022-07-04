@@ -1,8 +1,10 @@
-ldap3==2.9
-Flask==1.1.2
-ortools==9.0.9048
-Flask_Compress==1.9.0
-Flask_Cors==3.0.10
-requests==2.25.1
-beautifulsoup4==4.9.3
+ldap3
+Flask
+ortools
+Flask_Compress
+Flask_Cors
+requests
+beautifulsoup4
 gunicorn
+python-dateutil
+lxml

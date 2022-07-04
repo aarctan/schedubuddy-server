@@ -62,21 +62,27 @@ def process_and_write(raw_class_obj, db_cursor):
       instructor = em.partition("Primary Instructor: ")[2]
       instructors.append(instructor)
     # Range of dates, e.g. "2022-01-05 - 2022-04-08 MWF 12:00 - 12:50 (CCIS L2-190)"
+    # It's possible for there to be multiple ranges, in which case we need to create 
+    # classtimes for all of them.
     elif re.search("\d+-\d+-\d+ - \d+-\d+-\d+ \w+ \d+:\d+ - \d+:\d+", em):
-      potentially_biweekly = False
-      start_date, end_date = re.findall("\d+-\d+-\d+", em)
-      days, start_t, _, end_t = re.findall("\w+ \d+:\d+ - \d+:\d+", em)[0].split(' ')
-      location = em[em.find("(")+1 : em.find(")")]
-      location = location if location != "TBD" else None
-      for day in days:
-        key = (day, start_t, end_t, location)
-        dates_in_range = days_in_date_range(day, start_date, end_date)
-        if key not in dsel_dates_map:
-          dsel_dates_map[key] = dates_in_range
-        else:
-          for d in dates_in_range:
-            dsel_dates_map[key].add(d)
-      classtimes.append((days, start_t, end_t))
+      num_ranges = len(re.findall("\d+-\d+-\d+ - \d+-\d+-\d+ \w+ \d+:\d+ - \d+:\d+", em))
+      for curr_embed in re.findall(r"\d+-\d+-\d+ - \d+-\d+-\d+.*?\)", em):
+        potentially_biweekly = False
+        start_date, end_date = re.findall("\d+-\d+-\d+", curr_embed)
+        days, start_t, _, end_t = re.findall("\w+ \d+:\d+ - \d+:\d+", curr_embed)[0].split(' ')
+        if curr_embed.find(")") == -1:
+          curr_embed += ')'
+        location = curr_embed[curr_embed.find("(")+1 : curr_embed.find(")")]
+        location = location if location != "TBD" else None
+        for day in days:
+          key = (day, start_t, end_t, location)
+          dates_in_range = days_in_date_range(day, start_date, end_date)
+          if key not in dsel_dates_map:
+            dsel_dates_map[key] = dates_in_range
+          else:
+            for d in dates_in_range:
+              dsel_dates_map[key].add(d)
+        classtimes.append((days, start_t, end_t))
     # Single date and time, e.g. "2022-01-19 18:00 - 20:50 (TBD)"
     elif re.search("\d+-\d+-\d+ \d+:\d+ - \d+:\d+", em):
       date_raw = re.findall("\d+-\d+-\d+", em)[0]
@@ -122,6 +128,7 @@ def process_and_write(raw_class_obj, db_cursor):
     instructors, None, "ONLINE" if instructionMode == "Internet" else None,
     None, None, None, None, None, None, None, None, None, None, None, None,
     None, None, instructionMode, None, None))
+
 
 def initialize_db(db_cursor):
   db_cursor.execute(f"CREATE TABLE uOfATerm(term TEXT UNIQUE, termTitle TEXT,\
