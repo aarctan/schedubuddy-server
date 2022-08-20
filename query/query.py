@@ -177,7 +177,7 @@ class QueryExecutor:
     
     def get_schedules(self, term:int, course_id_list:str, prefs, gen_sched):
         course_id_list = [str(c) for c in course_id_list[1:-1].split(',')]
-        prefs_list = [str(p) for p in prefs[1:-1].split(',')]
+        prefs_list = prefs if type(prefs) == list else [str(p) for p in prefs[1:-1].split(',')]
         start_time_pref = prefs_list[2]
         if len(start_time_pref) == 7: # no trailing 0
             start_time_pref = '0' + start_time_pref
