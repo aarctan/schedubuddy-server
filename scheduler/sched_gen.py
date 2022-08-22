@@ -1,5 +1,5 @@
 from random import shuffle
-from . import MRV, SAT_solve
+from . import MRV
 
 ASSUMED_COMMUTE_TIME = 30
 
