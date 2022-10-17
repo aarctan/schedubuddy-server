@@ -47,46 +47,35 @@ def get_catalogs_from_subject(subject):
     return catalogs
 
 def write_raw(subject, catalog, fp):
-    def process_raw_class_str(raw_class_str):
-        raw = raw_class_str.strip().split(' ')
-        lec, section, class_id = raw[0][:3].upper(), raw[1], raw[2]
-        id_cutoff = class_id.find('\n')
-        class_id = class_id[1:(id_cutoff-1 if id_cutoff != -1 else -1)]
-        return lec, section, class_id
-
     class_objs = []
     course_url = f"{ROOT}/course/{subject}/{catalog}"
     classes_soup = BeautifulSoup(requests.get(course_url).text, "lxml")
     soup_divs = classes_soup.findAll("div", {"class": TERM_DIV_CLASS})
     for soup_div in soup_divs:
         term_header = soup_div.find("h2", {"class": TERM_H2_CLASS})
-        if not term_header:
-            continue
         term_name, term_id = term_header.text, term_header['id']
-        soup_component = soup_div.find("h3")
-        if not soup_component:
-            continue
-        while True:
-            component_type = soup_component.text[:3].upper()
-            table_soup = soup_component.find_next("table")
-            headers = table_soup.find_all('th')
+        cont_soup = soup_div.find("div", {"class": "card-body"})
+        num_conts = len(cont_soup.findAll("h3"))
+        children = cont_soup.findChildren(recursive=False)
+        for i in range(num_conts):
+            component_type = children[i*2].text[:3].upper()
+            component_table = children[i*2+1]
+            headers = component_table.find_all('th')
             rows = {}
             for header in headers:
                 header_name = header.text.strip()
                 if header_name == "Capacity":
                     continue
                 rows[header_name] = []
-                row_soup = table_soup.find_all("td", {"data-card-title": header_name})
+                row_soup = component_table.find_all("td", {"data-card-title": header_name})
                 row_count = len(row_soup)
                 for row in row_soup:
                     col = row.find("div", {"class": "table-card-content"}) # CONTENT
                     if not col:
                         rows[header_name].append(None)
                         continue
-                    #raw_candidate = ' '.join(i.strip() for i in col.text.strip().split('\n'))
                     raw_candidate = col.text.strip()
                     rows[header_name].append(raw_candidate)
-
             rows = list(rows.values())
             for row_itr in range(row_count):
                 class_id, section, embeds = None, None, None
@@ -96,8 +85,10 @@ def write_raw(subject, catalog, fp):
                     # col Section for class section and class id
                     #print(raw_candidate)
                     if component_type in raw_candidate:
-                        section = raw_candidate.split(' ')[1].strip()
-                        class_id = raw_candidate.split(' ')[-1][1:-1]
+                        clean_raw_cand = list(filter(('').__ne__, raw_candidate.split(' ')))
+                        has_syllabus = clean_raw_cand[-1].strip().lower() == "syllabus"
+                        section = clean_raw_cand[1].strip()
+                        class_id = clean_raw_cand[-4][1:-2] if has_syllabus else clean_raw_cand[-1][1:-1]
                     # col Instructor(s); only deal with primary instructor
                     elif "Primary Instructor: " in raw_candidate:
                         instructor_name = raw_candidate[len("Primary Instructor: ")+1:]
@@ -122,10 +113,6 @@ def write_raw(subject, catalog, fp):
                     "termName": term_name,
                 }
                 class_objs.append(raw_obj)
-
-            soup_component = soup_component.find_next("h3")
-            if not soup_component:
-                break
     return class_objs
 
 debug = False
@@ -139,7 +126,7 @@ def main():
     subjects = []
     # disable debug mode
     if debug:
-        subjects = ['NURS']
+        subjects = ['OCCTH']
     else:
         print(f"Reading faculties from catalog...")
         faculty_codes = get_faculties_from_catalogue() # ['ED', 'EN', 'SC', ...]
@@ -152,21 +139,29 @@ def main():
     raw_data = []
     print(f"Read {len(subjects)} subjects.\n")
     #time.sleep(3)
+    failures = []
     for i, subject in enumerate(subjects):
         print(f"Reading {subject} ({i + 1}/{len(subjects)})...")
-        course_nums = set(get_catalogs_from_subject(subject)) # ['101', '174', ...]
+        if debug:
+            course_nums = set(get_catalogs_from_subject(subject)) # ['101', '174', ...]
+        else:
+            course_nums = set(get_catalogs_from_subject(subject)) # ['101', '174', ...]
         print(f"Reading {len(course_nums)} course{'s' if len(course_nums) != 1 else ''} in {subject}...")
         for course_num in course_nums:
             #if course_num != "330":
             #   continue
             print(f"Reading {subject} {course_num}")
-            raw_objs = write_raw(subject, course_num, raw_file)
-            print(json.dumps(raw_objs, indent=4))
-            for raw_obj in raw_objs:
-                raw_data.append(raw_obj)
-            print(f"Read {subject} {course_num}")
-            time.sleep(1)
+            try:
+                raw_objs = write_raw(subject, course_num, raw_file)
+                print(json.dumps(raw_objs, indent=4))
+                for raw_obj in raw_objs:
+                    raw_data.append(raw_obj)
+                print(f"Read {subject} {course_num}")
+            except:
+                failures.append(f"{subject} {course_num}")
+            #time.sleep(2.5)
         print(f"Done reading {subject}.\n")
+        print(f"Failures: {failures}")
     raw_file.write(json.dumps(raw_data, sort_keys=True, indent=4))
     raw_file.close()
 
