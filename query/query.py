@@ -19,6 +19,9 @@ class QueryExecutor:
         uni_format_path = os.path.join(dirname, "../formats/uAlberta.json")
         university_json_f = open(uni_format_path)
         self._uni_json = json.load(university_json_f)
+        self._minimal_class_keys = ['asString', 'class', 'component', 'course',\
+            'InstructionMode', 'instructorName', 'instructorUid', 'location',\
+            'section', 'term']
         university_json_f.close()
         logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
         self._term_class_cache = {}
@@ -146,7 +149,7 @@ class QueryExecutor:
             return None
         return {"objects":json_res}
     
-    def _get_class_obj(self, term:int, class_id:str, loc_filter=None):
+    def _get_class_obj(self, term:int, class_id:str, loc_filter=None, minimal=False):
         if class_id in self._term_class_cache[str(term)]:
             return self._term_class_cache[str(term)][class_id]
         class_query = f"SELECT * FROM uOfAClass WHERE term=? AND class=?"
@@ -155,6 +158,8 @@ class QueryExecutor:
         json_res = {}
         for k, attr in enumerate(class_row):
             key = self._uni_json["calendar"]["uOfAClass"][k]
+            if minimal and not key in self._minimal_class_keys:
+                continue
             json_res[key] = attr
         json_res["classtimes"] = []
         classtimes = self._get_classtimes(term, class_id)
@@ -214,7 +219,8 @@ class QueryExecutor:
         for schedule in schedules:
             json_sched = []
             for class_id in schedule:
-                json_sched.append(self._get_class_obj(term, class_id))
+                class_obj = self._get_class_obj(term, class_id, minimal=True)
+                json_sched.append(class_obj)
             json_schedules.append(json_sched)
         json_res["schedules"] = json_schedules
         json_res["aliases"] = sched_obj["aliases"]
