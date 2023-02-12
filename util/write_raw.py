@@ -70,7 +70,7 @@ def write_raw(subject, catalog, fp):
                 row_soup = component_table.find_all("td", {"data-card-title": header_name})
                 row_count = len(row_soup)
                 for row in row_soup:
-                    col = row.find("div", {"class": "table-card-content"}) # CONTENT
+                    col = row.find("div") # CONTENT
                     if not col:
                         rows[header_name].append(None)
                         continue
@@ -126,7 +126,7 @@ def main():
     subjects = []
     # disable debug mode
     if debug:
-        subjects = ['OCCTH']
+        subjects = ['PL_SC']
     else:
         print(f"Reading faculties from catalog...")
         faculty_codes = get_faculties_from_catalogue() # ['ED', 'EN', 'SC', ...]
@@ -143,7 +143,7 @@ def main():
     for i, subject in enumerate(subjects):
         print(f"Reading {subject} ({i + 1}/{len(subjects)})...")
         if debug:
-            course_nums = set(get_catalogs_from_subject(subject)) # ['101', '174', ...]
+            course_nums = ['352']
         else:
             course_nums = set(get_catalogs_from_subject(subject)) # ['101', '174', ...]
         print(f"Reading {len(course_nums)} course{'s' if len(course_nums) != 1 else ''} in {subject}...")
