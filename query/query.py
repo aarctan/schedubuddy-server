@@ -1,4 +1,5 @@
 import os, sqlite3, json, sys, logging
+from collections import defaultdict
 
 def str_t_to_int(str_t):
     h = int(str_t[0:2])
@@ -238,3 +239,44 @@ class QueryExecutor:
         json_res["schedules"] = [json_sched]
         json_res["aliases"] = {}
         return {"objects": json_res}
+
+    def get_avaliable_rooms(self, term, weekday, starttime, endtime):
+
+        # Get all distinct rooms
+        course_query = f"SELECT DISTINCT location FROM uOfAClassTime WHERE term=?"
+        self._cursor.execute(course_query, (str(term),))
+        all_rooms = set(map(lambda x: x[0], self._cursor.fetchall())) 
+        
+        # Loop over all all avaliable
+        all_classes_today_query = f"SELECT * FROM uOfAClassTime WHERE term=? AND day=?"
+        self._cursor.execute(all_classes_today_query, (str(term), weekday))
+        all_classes_today = self._cursor.fetchall()
+
+        self._remove_conflicting_classes(all_rooms, all_classes_today, starttime, endtime)
+        return self._get_nested_dict_from_location(all_rooms)
+
+    def _get_nested_dict_from_location(self, rooms):
+        organized_dict = defaultdict(list)
+        for room in rooms:
+            areaName = room.split()[0]
+            organized_dict[areaName].append(room)
+        return organized_dict
+
+    def _remove_conflicting_classes(self, all_rooms, all_classes, starttime, endtime):
+
+        starttime_as_min_int = str_t_to_int(starttime)
+        endtime_as_min_int = str_t_to_int(endtime)
+
+        all_rooms.discard("Location TBD")
+
+        # Test each class for interesction
+        for classObj in all_classes:
+            classLoc = classObj[3]
+            classStart = str_t_to_int(classObj[7])
+            classEnd = str_t_to_int(classObj[8])
+            # If not in the set, don't do any computation
+            if classLoc not in all_rooms: continue
+            # else, if overlap, then remove from avaliable classes
+            elif starttime_as_min_int <= classEnd and classStart <= endtime_as_min_int: all_rooms.discard(classLoc)
+
+        return

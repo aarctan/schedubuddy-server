@@ -1,5 +1,5 @@
 import flask, json
-from flask import request, jsonify
+from flask import request, jsonify, abort
 from flask_cors import CORS
 from flask_compress import Compress
 from query import query
@@ -69,6 +69,16 @@ def api_room_sched():
         if required_arg not in args:
             return
     return jsonify(qe.get_room_classes(args["term"], args["room"]))
+
+@app.route("/api/all-rooms-open/", methods=['GET'])
+def api_all_avail_rooms():
+    # ensure good request
+    args = request.args
+    if not (args.keys() >= {"term","weekday","starttime","endtime"}):
+        return jsonify({"message":"provide all required query params!"}), 400
+    # Get all distinct classes
+    distinct_rooms = qe.get_avaliable_rooms(args["term"], args["weekday"], args["starttime"], args["endtime"])
+    return jsonify({"available_rooms": distinct_rooms }), 200
 
 Compress(app)
 if __name__ == "__main__":
