@@ -241,42 +241,48 @@ class QueryExecutor:
         return {"objects": json_res}
 
     def get_avaliable_rooms(self, term, weekday, starttime, endtime):
-
-        # Get all distinct rooms
-        course_query = f"SELECT DISTINCT location FROM uOfAClassTime WHERE term=?"
-        self._cursor.execute(course_query, (str(term),))
-        all_rooms = set(map(lambda x: x[0], self._cursor.fetchall())) 
         
-        # Loop over all all avaliable
-        all_classes_today_query = f"SELECT * FROM uOfAClassTime WHERE term=? AND day=?"
-        self._cursor.execute(all_classes_today_query, (str(term), weekday))
+        # Get all scheduled classes
+        all_classes_today_query = f"SELECT * FROM uOfAClassTime WHERE term=? AND location != ?"
+        self._cursor.execute(all_classes_today_query, (str(term), "Location TBD"))
         all_classes_today = self._cursor.fetchall()
+        location_dict, classes_to_remove = self._find_conflicting_classes(all_classes_today, starttime, endtime, weekday)
+        return self._remove_locations(location_dict, classes_to_remove)
 
-        self._remove_conflicting_classes(all_rooms, all_classes_today, starttime, endtime)
-        return self._get_nested_dict_from_location(all_rooms)
-
-    def _get_nested_dict_from_location(self, rooms):
-        organized_dict = defaultdict(list)
-        for room in rooms:
-            areaName = room.split()[0]
-            organized_dict[areaName].append(room)
-        return organized_dict
-
-    def _remove_conflicting_classes(self, all_rooms, all_classes, starttime, endtime):
+    def _find_conflicting_classes(self, all_classes, starttime, endtime, weekday):
 
         starttime_as_min_int = str_t_to_int(starttime)
         endtime_as_min_int = str_t_to_int(endtime)
 
-        all_rooms.discard("Location TBD")
+        class_locations = defaultdict(lambda: {"classes_today": 0, "class_after": False})
+        conflicting_locations = set()
 
         # Test each class for interesction
         for classObj in all_classes:
             classLoc = classObj[3]
+            classWeekday = classObj[6]
             classStart = str_t_to_int(classObj[7])
             classEnd = str_t_to_int(classObj[8])
             # If not in the set, don't do any computation
-            if classLoc not in all_rooms: continue
-            # else, if overlap, then remove from avaliable classes
-            elif starttime_as_min_int <= classEnd and classStart <= endtime_as_min_int: all_rooms.discard(classLoc)
+            if classLoc in conflicting_locations: continue
+            # Check weekday match
+            if classWeekday == weekday:
+                if starttime_as_min_int <= classEnd and classStart <= endtime_as_min_int: 
+                    conflicting_locations.add(classLoc)
+                if endtime_as_min_int <= classStart:
+                    class_locations[classLoc]["class_after"] = True
+                class_locations[classLoc]["classes_today"] += 1
+            else:
+                class_locations[classLoc] # add entry to dict
 
-        return
+        return class_locations, conflicting_locations
+
+    def _remove_locations(self, all_locations: dict, classes_to_remove: set): 
+        organized_locations = defaultdict(list)
+        for k, v in all_locations.items():
+            if k in classes_to_remove: continue
+            building_name = k.split()[0]
+            v.update({"name": k})
+            organized_locations[building_name].append(v)
+        return organized_locations
+            
