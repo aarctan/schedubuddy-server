@@ -241,16 +241,22 @@ class QueryExecutor:
         return {"objects": json_res}
 
     def get_avaliable_rooms(self, term, weekday, starttime, endtime):
-        
+        """
+        Gets all the locations avaliable given timeframe,weekday,and term. Organized by building name. 
+        """
         # Get all scheduled classes
         all_classes_today_query = f"SELECT * FROM uOfAClassTime WHERE term=? AND location != ?"
         self._cursor.execute(all_classes_today_query, (str(term), "Location TBD"))
         all_classes_today = self._cursor.fetchall()
-        location_dict, classes_to_remove = self._find_conflicting_classes(all_classes_today, starttime, endtime, weekday)
-        return self._remove_locations(location_dict, classes_to_remove)
+        # Get all room info, and which rooms to remove
+        location_dict = self._analyze_classes(all_classes_today, starttime, endtime, weekday)
+        # remove rooms.
+        return self._organize_locations(location_dict)
 
-    def _find_conflicting_classes(self, all_classes, starttime, endtime, weekday):
-
+    def _analyze_classes(self, all_classes: list, starttime: str, endtime: str, weekday: str):
+        """
+        Returns a dictionary containing the info for each classroom, along with a set of classrooms to remove.
+        """
         starttime_as_min_int = str_t_to_int(starttime)
         endtime_as_min_int = str_t_to_int(endtime)
 
@@ -269,18 +275,22 @@ class QueryExecutor:
             if classWeekday == weekday:
                 if starttime_as_min_int <= classEnd and classStart <= endtime_as_min_int: 
                     conflicting_locations.add(classLoc)
+                    class_locations.pop(classLoc, None)
                 if endtime_as_min_int <= classStart:
                     class_locations[classLoc]["class_after"] = True
                 class_locations[classLoc]["classes_today"] += 1
             else:
                 class_locations[classLoc] # add entry to dict
 
-        return class_locations, conflicting_locations
+        return class_locations
 
-    def _remove_locations(self, all_locations: dict, classes_to_remove: set): 
+    def _organize_locations(self, all_locations: dict):
+        """
+        Given a dictionary of locations, it will created a dictionary of those locations with the 
+        building name as a key, and the list of locations as the value.  
+        """
         organized_locations = defaultdict(list)
         for k, v in all_locations.items():
-            if k in classes_to_remove: continue
             building_name = k.split()[0]
             v.update({"name": k})
             organized_locations[building_name].append(v)
