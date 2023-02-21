@@ -273,9 +273,10 @@ class QueryExecutor:
             if classLoc in conflicting_locations: continue
             # Check weekday match
             if classWeekday == weekday:
-                if starttime_as_min_int <= classEnd and classStart <= endtime_as_min_int: 
+                if starttime_as_min_int < classEnd and classStart < endtime_as_min_int: 
                     conflicting_locations.add(classLoc)
                     class_locations.pop(classLoc, None)
+                    continue
                 if endtime_as_min_int <= classStart:
                     class_locations[classLoc]["class_after"] = True
                 class_locations[classLoc]["classes_today"] += 1
