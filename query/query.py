@@ -244,6 +244,7 @@ class QueryExecutor:
         """
         Gets all the locations avaliable given timeframe,weekday,and term. Organized by building name. 
         """
+        print(f"Available room lookup for term {term} on {weekday} from {starttime} to {endtime}")
         # Get all scheduled classes
         all_classes_today_query = f"SELECT * FROM uOfAClassTime WHERE term=? AND location != ?"
         self._cursor.execute(all_classes_today_query, (str(term), "Location TBD"))
