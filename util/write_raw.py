@@ -57,6 +57,12 @@ def write_raw(subject, catalog, fp):
         cont_soup = soup_div.find("div", {"class": "card-body"})
         num_conts = len(cont_soup.findAll("h3"))
         children = cont_soup.findChildren(recursive=False)
+        # Workaround to skip "This course is changing in this term...":
+        # Seek to the first <h3> and truncate all earlier children
+        currChild = 0
+        while children[currChild].name != "h3":
+            currChild += 1
+        children = children[currChild:]
         for i in range(num_conts):
             component_type = children[i*2].text[:3].upper()
             component_table = children[i*2+1]

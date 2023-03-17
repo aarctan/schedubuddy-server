@@ -1,4 +1,5 @@
 import os, sqlite3, json, sys, logging
+from collections import defaultdict
 
 def str_t_to_int(str_t):
     h = int(str_t[0:2])
@@ -238,3 +239,62 @@ class QueryExecutor:
         json_res["schedules"] = [json_sched]
         json_res["aliases"] = {}
         return {"objects": json_res}
+
+    def get_avaliable_rooms(self, term, weekday, starttime, endtime):
+        """
+        Gets all the locations avaliable given timeframe,weekday,and term. Organized by building name. 
+        """
+        print(f"Available room lookup for term {term} on {weekday} from {starttime} to {endtime}")
+        # Get all scheduled classes
+        all_classes_today_query = f"SELECT * FROM uOfAClassTime WHERE term=? AND location != ?"
+        self._cursor.execute(all_classes_today_query, (str(term), "Location TBD"))
+        all_classes_today = self._cursor.fetchall()
+        # Get all room info, and which rooms to remove
+        location_dict = self._analyze_classes(all_classes_today, starttime, endtime, weekday)
+        # remove rooms.
+        return self._organize_locations(location_dict)
+
+    def _analyze_classes(self, all_classes: list, starttime: str, endtime: str, weekday: str):
+        """
+        Returns a dictionary containing the info for each classroom, along with a set of classrooms to remove.
+        """
+        starttime_as_min_int = str_t_to_int(starttime)
+        endtime_as_min_int = str_t_to_int(endtime)
+
+        class_locations = defaultdict(lambda: {"classes_today": 0, "class_after": False})
+        conflicting_locations = set()
+
+        # Test each class for interesction
+        for classObj in all_classes:
+            classLoc = classObj[3]
+            classWeekday = classObj[6]
+            classStart = str_t_to_int(classObj[7])
+            classEnd = str_t_to_int(classObj[8])
+            # If not in the set, don't do any computation
+            if classLoc in conflicting_locations: continue
+            # Check weekday match
+            if classWeekday == weekday:
+                if starttime_as_min_int < classEnd and classStart < endtime_as_min_int: 
+                    conflicting_locations.add(classLoc)
+                    class_locations.pop(classLoc, None)
+                    continue
+                if endtime_as_min_int <= classStart:
+                    class_locations[classLoc]["class_after"] = True
+                class_locations[classLoc]["classes_today"] += 1
+            else:
+                class_locations[classLoc] # add entry to dict
+
+        return class_locations
+
+    def _organize_locations(self, all_locations: dict):
+        """
+        Given a dictionary of locations, it will created a dictionary of those locations with the 
+        building name as a key, and the list of locations as the value.  
+        """
+        organized_locations = defaultdict(list)
+        for k, v in all_locations.items():
+            building_name = k.split()[0]
+            v.update({"name": k})
+            organized_locations[building_name].append(v)
+        return organized_locations
+            
