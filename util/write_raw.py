@@ -94,7 +94,7 @@ def write_raw(subject, catalog, fp):
                         clean_raw_cand = list(filter(('').__ne__, raw_candidate.split(' ')))
                         has_syllabus = clean_raw_cand[-1].strip().lower() == "syllabus"
                         section = clean_raw_cand[1].strip()
-                        class_id = clean_raw_cand[-4][1:-2] if has_syllabus else clean_raw_cand[-1][1:-1]
+                        class_id = clean_raw_cand[-4][1:-2] if has_syllabus else clean_raw_cand[2][1:-1]
                     # col Instructor(s); only deal with primary instructor
                     elif "Primary Instructor: " in raw_candidate:
                         instructor_name = raw_candidate[len("Primary Instructor: ")+1:]
