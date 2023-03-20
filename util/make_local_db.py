@@ -22,6 +22,12 @@ def days_in_date_range(day, range_start, range_end):
             dates.append(d)
     return set(dates)
 
+def is_valid_key(k):
+    """
+    key = (day of week, start time, end time, location)
+    the first 3 should never be None, that's what this function verifies
+    """
+    return None not in k[:3]
 
 def process_and_write(raw_class_obj, db_cursor):
     # Retrieve the raw keys of the object
@@ -58,47 +64,54 @@ def process_and_write(raw_class_obj, db_cursor):
     # check that the class time (D, S, E, L) occurs at least 4 times.
     # We can map (D, S, E, L) to a list of dates it occurs and check count.
     instructors = []
-    classtimes = []
     dsel_dates_map = {}
     potentially_biweekly = True
+
+    # Range of dates, e.g. "2022-01-05 - 2022-04-08 MWF 12:00 - 12:50 (CCIS L2-190)"
+    # It's possible for there to be multiple ranges, in which case we need to create
+    # classtimes for all of them. Also possible to see single date and time, e.g. "2022-01-19 18:00 - 20:50 (TBD)"
+    # the mega-regex takes care of all of this. In re.VERBOSE mode, whitespace is ignore unless escape, and comments
+    # can be made with hashtags
+    mega_regex = re.compile(r"""
+        # start date should always be present ex '2022-01-19 '
+        (?P<start_d>\d+-\d+-\d+)
+        # The end date and days are not always present but when they are they'll look like this ' - 2022-04-08 MWF'
+        (\ -\ (?P<end_d>\d+-\d+-\d+)\ (?P<days>\w+))?\ 
+        # start time should always be present ex '12:00 - '
+        (?P<start_t>\d+:\d+)\ -\ 
+        # end time should always be present ex '12:50'
+        (?P<end_t>\d+:\d+)
+        # location will not always be present, but when it is it'll look like this: ' (CCIS L2-190)'
+        (\ \((?P<location>.*?)\))?
+    """, re.VERBOSE)
+
     for em in embeds:
         em = em.replace('\n', ' ')
         if re.search("^Primary Instructor: \w+", em):
             instructor = em.partition("Primary Instructor: ")[2]
             instructors.append(instructor)
-        # Range of dates, e.g. "2022-01-05 - 2022-04-08 MWF 12:00 - 12:50 (CCIS L2-190)"
-        # It's possible for there to be multiple ranges, in which case we need to create
-        # classtimes for all of them.
-        elif re.search("\d+-\d+-\d+ - \d+-\d+-\d+ \w+ \d+:\d+ - \d+:\d+", em):
-            for curr_embed in re.findall(r"\d+-\d+-\d+ - \d+-\d+-\d+.*?\)", em):
-                potentially_biweekly = False
-                start_date, end_date = re.findall("\d+-\d+-\d+", curr_embed)
-                days, start_t, _, end_t = re.findall("\w+ \d+:\d+ - \d+:\d+", curr_embed)[0].split(' ')
-                if curr_embed.find(")") == -1:
-                    curr_embed += ')'
-                location = curr_embed[curr_embed.find("(") + 1: curr_embed.find(")")]
-                location = location if location != "TBD" else None
-                for day in days:
-                    key = (day, start_t, end_t, location)
-                    dates_in_range = days_in_date_range(day, start_date, end_date)
-                    if key not in dsel_dates_map:
-                        dsel_dates_map[key] = dates_in_range
-                    else:
-                        for d in dates_in_range:
-                            dsel_dates_map[key].add(d)
-                classtimes.append((days, start_t, end_t))
-        elif re.search("\d+-\d+-\d+ \d+:\d+ - \d+:\d+", em):
-            date_raw = re.findall("\d+-\d+-\d+", em)[0]
-            date = datetime.strptime(date_raw, '%Y-%m-%d')
-            day = "MTWHFSU"[date.weekday()]
-            start_t, end_t = re.findall("\d+:\d+", em)
-            location = em[em.find("(") + 1: em.find(")")]
-            location = location if location != "TBD" else None
-            key = (day, start_t, end_t, location)
-            if key not in dsel_dates_map:
-                dsel_dates_map[key] = {date}
-            else:
-                dsel_dates_map[key].add(date)
+        else:
+            for parsed in mega_regex.finditer(em):
+                p = parsed.groupdict()
+                keys = []
+                # ie, location is assigned if it's not None or TBD
+                location = p["location"] if p["location"] not in (None, "TBD") else None
+                if not p["end_d"]:
+                    # Single date and time, e.g. "2022-01-19 18:00 - 20:50 (TBD)"
+                    # indicates we're dealing with a single date and time
+                    class_date = datetime.strptime(p["start_d"], "%Y-%m-%d")
+                    class_day = "MTWHFSU"[class_date.weekday()]
+                    key = (class_day, p["start_t"], p["end_t"], location)
+                    assert is_valid_key(key)
+                    dsel_dates_map.setdefault(key, set()).add(class_date)
+                else:
+                    # "normal" date ranges
+                    potentially_biweekly = False
+                    for day in p["days"]:
+                        key = (day, p["start_t"], p["end_t"], location)
+                        assert is_valid_key(key)
+                        dsel_dates_map.setdefault(key, set()).update(days_in_date_range(day, p["start_d"], p["end_d"]))
+
 
     instructors = str(instructors) if instructors != [] else None
     if len(dsel_dates_map) == 0:
