@@ -8,7 +8,7 @@ from pathlib import Path
 
 enum_weekday = {'M': 0, 'T': 1, 'W': 2, 'H': 3, 'F': 4, 'S': 5, 'U': 6}
 term_start_dates = {}
-
+year_str = str(datetime.now().year)
 
 def days_in_date_range(day, range_start, range_end):
     # Returns a list of dates that a 'day', e.g. 'M', occurs in the range of dates
@@ -22,12 +22,14 @@ def days_in_date_range(day, range_start, range_end):
             dates.append(d)
     return set(dates)
 
+
 def is_valid_key(k):
     """
     key = (day of week, start time, end time, location)
     the first 3 should never be None, that's what this function verifies
     """
     return None not in k[:3]
+
 
 def process_and_write(raw_class_obj, db_cursor):
     # Retrieve the raw keys of the object
@@ -41,17 +43,6 @@ def process_and_write(raw_class_obj, db_cursor):
     section = raw_class_obj["section"]
     embeds = raw_class_obj["embeds"]
     instructionMode = "Online" if raw_class_obj["online"] else "In Person"
-
-    # Write the term if it does not exist
-    db_cursor.execute("INSERT OR IGNORE INTO uOfATerm VALUES (?, ?, ?, ?)", (termId, termName, None, None))
-
-    # Write a new course for the term if it does not exist
-    db_cursor.execute("SELECT * FROM uOfACourse WHERE term=? AND course=?", (termId, courseId))
-    if not db_cursor.fetchone():
-        db_cursor.execute(
-            "INSERT INTO uOfACourse VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (termId, courseId, subject, catalog, courseId, None, None, None, None, None, None, None, None, None)
-        )
 
     # Exit if this class has already been written
     db_cursor.execute("SELECT * FROM uOfAClass WHERE term=? AND course=? AND class=?", (termId, courseId, classId))
@@ -112,10 +103,23 @@ def process_and_write(raw_class_obj, db_cursor):
                         assert is_valid_key(key)
                         dsel_dates_map.setdefault(key, set()).update(days_in_date_range(day, p["start_d"], p["end_d"]))
 
-
     instructors = str(instructors) if instructors != [] else None
     if len(dsel_dates_map) == 0:
-        return
+        # if the current year is in any of the embeds, we likely failed to parse a date here, so lets warn about that
+        assert not any(map(lambda x: year_str in x, embeds)), f"The current year is in at least one embed, date parsing failure? {embeds=}"
+
+    # only write courses we know the schedules for
+    # Write the term if it does not exist
+    db_cursor.execute("INSERT OR IGNORE INTO uOfATerm VALUES (?, ?, ?, ?)", (termId, termName, None, None))
+
+    # Write a new course for the term if it does not exist
+    db_cursor.execute("SELECT * FROM uOfACourse WHERE term=? AND course=?", (termId, courseId))
+    if not db_cursor.fetchone():
+        db_cursor.execute(
+            "INSERT INTO uOfACourse VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (termId, courseId, subject, catalog, courseId, None, None, None, None, None, None, None, None, None)
+        )
+
     for dsel in dsel_dates_map:
         if len(dsel_dates_map[dsel]) >= 4:
             biweekly = None
@@ -210,10 +214,7 @@ def db_update():
     retrieve_term_start_dates()
     for raw_class_obj in data:
         process_and_write(raw_class_obj, db_cursor)
-    db_cursor.execute("DELETE FROM uOfACourse WHERE course IN\
-        (SELECT uOfACourse.course FROM uOfACourse LEFT JOIN uOfAClass\
-        ON uOfACourse.course=uOfAClass.course AND uOfACourse.term=uOfAClass.term\
-        WHERE uOfAClass.course IS NULL)")
+
     db_conn.commit()
     db_conn.close()
     db_path.rename(final_db_path)
