@@ -42,7 +42,7 @@ def process_and_write(raw_class_obj, db_cursor):
     component = raw_class_obj["component"]
     section = raw_class_obj["section"]
     embeds = raw_class_obj["embeds"]
-    instructionMode = "Online" if raw_class_obj["online"] else "In Person"
+    instructionMode = "Online" if raw_class_obj.get("online") else "In Person"
 
     # Exit if this class has already been written
     db_cursor.execute("SELECT * FROM uOfAClass WHERE term=? AND course=? AND class=?", (termId, courseId, classId))
