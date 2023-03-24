@@ -94,7 +94,7 @@ def write_raw(subject, catalog, fp):
                         clean_raw_cand = list(filter(('').__ne__, raw_candidate.split(' ')))
                         has_syllabus = clean_raw_cand[-1].strip().lower() == "syllabus"
                         section = clean_raw_cand[1].strip()
-                        class_id = clean_raw_cand[-4][1:-2] if has_syllabus else clean_raw_cand[-1][1:-1]
+                        class_id = clean_raw_cand[-4][1:-2] if has_syllabus else clean_raw_cand[2][1:-1]
                     # col Instructor(s); only deal with primary instructor
                     elif "Primary Instructor: " in raw_candidate:
                         instructor_name = raw_candidate[len("Primary Instructor: ")+1:]
@@ -135,13 +135,13 @@ def main():
         subjects = ['PL_SC']
     else:
         print(f"Reading faculties from catalog...")
-        faculty_codes = get_faculties_from_catalogue() # ['ED', 'EN', 'SC', ...]
+        faculty_codes = sorted(get_faculties_from_catalogue()) # ['ED', 'EN', 'SC', ...]
         print(f"Read {len(faculty_codes)} faculties from catalog.\n")
         print(f"Reading subjects from faculties...")
         subjects = []
         for faculty_code in faculty_codes:
             subjects += get_subjects_from_faculty(faculty_code)
-        subjects = list(set(subjects)) # ['CHEM, 'CMPUT', 'MATH', ...]
+        subjects = sorted(set(subjects)) # ['CHEM, 'CMPUT', 'MATH', ...]
     raw_data = []
     print(f"Read {len(subjects)} subjects.\n")
     #time.sleep(3)
@@ -152,6 +152,7 @@ def main():
             course_nums = ['352']
         else:
             course_nums = set(get_catalogs_from_subject(subject)) # ['101', '174', ...]
+        course_nums = sorted(course_nums)
         print(f"Reading {len(course_nums)} course{'s' if len(course_nums) != 1 else ''} in {subject}...")
         for course_num in course_nums:
             #if course_num != "330":
@@ -159,10 +160,8 @@ def main():
             print(f"Reading {subject} {course_num}")
             try:
                 raw_objs = write_raw(subject, course_num, raw_file)
-                print(json.dumps(raw_objs, indent=4))
                 for raw_obj in raw_objs:
                     raw_data.append(raw_obj)
-                print(f"Read {subject} {course_num}")
             except:
                 failures.append(f"{subject} {course_num}")
             #time.sleep(2.5)
