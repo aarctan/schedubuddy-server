@@ -1,5 +1,26 @@
-import os, sqlite3, json, sys, logging
+import os, sqlite3, json, sys, logging, requests
+import pytz
 from collections import defaultdict
+from datetime import datetime
+
+DISCORDHOOK = os.environ.get('DISCORDHOOK')
+mst = pytz.timezone('America/Edmonton')
+
+def send_discord_message(message):
+    webhook_url = DISCORDHOOK
+    mst_time = datetime.now(mst)
+    data = {
+        "content": '**' + mst_time.strftime("%Y-%m-%d %I:%M:%S %p") + '**' + '\n' + message
+    }
+    response = requests.post(
+        webhook_url, data=json.dumps(data),
+        headers={"Content-Type": "application/json"}
+    )
+    if response.status_code != 204:
+        raise ValueError(
+            "Request to discord returned an error %s, the response is:\n%s"
+            % (response.status_code, response.text)
+        )
 
 def str_t_to_int(str_t):
     h = int(str_t[0:2])
@@ -210,6 +231,7 @@ class QueryExecutor:
             except:
                 pass
         logging.debug(c_list)
+        send_discord_message(', '.join(c_list) + ' lookup in term ' + str(term))
 
         sched_obj = gen_sched.generate_schedules({"objects":classes}, prefs)
         if "errmsg" in sched_obj:
@@ -229,6 +251,7 @@ class QueryExecutor:
     
     def get_room_classes(self, term, room):
         print(f"Room '{room}' lookup in term {term}")
+        send_discord_message(f"Room '{room}' lookup in term {term}")
         query = "SELECT class FROM uOfAClassTime WHERE term=? AND location=?"
         self._cursor.execute(query, (str(term), str(room)))
         classes = self._cursor.fetchall()
@@ -245,6 +268,7 @@ class QueryExecutor:
         Gets all the locations avaliable given timeframe,weekday,and term. Organized by building name. 
         """
         print(f"Available room lookup for term {term} on {weekday} from {starttime} to {endtime}")
+        send_discord_message(f"Available room lookup for term {term} on {weekday} from {starttime} to {endtime}")
         # Get all scheduled classes
         all_classes_today_query = f"SELECT * FROM uOfAClassTime WHERE term=? AND location != ?"
         self._cursor.execute(all_classes_today_query, (str(term), "Location TBD"))
