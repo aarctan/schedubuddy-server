@@ -174,11 +174,15 @@ def retrieve_term_start_dates():
     # must start on the monday after the first week. All labs during this week
     # are assumed to have a biweekly flag of 1, and ones that start the week
     # after the first week of labs will have a biweekly flag of 2.
-    fall_first = datetime.strptime("September 1, 2022", '%B %d, %Y')
-    winter_first = datetime.strptime("January 5, 2023", '%B %d, %Y')
-    term_start_dates["1810"] = fall_first + timedelta((0 - fall_first.weekday()) % 7)
-    term_start_dates["1820"] = winter_first + timedelta((0 - winter_first.weekday()) % 7)
 
+    # first day of fall in catalog:
+    # "Fall Term and Fall/Winter two-term classes begin. Exceptions may apply; students must consult with their Faculty office."
+    # first day of winter in catalog:
+    # "Winter Term classes begin. Exceptions may apply; students must consult with their Faculty office."
+    fall_first = datetime.strptime("September 5, 2022", '%B %d, %Y')
+    winter_first = datetime.strptime("January 8, 2023", '%B %d, %Y')
+    term_start_dates["1850"] = fall_first + timedelta((0 - fall_first.weekday()) % 7)
+    term_start_dates["1860"] = winter_first + timedelta((0 - winter_first.weekday()) % 7)
 
 def db_update():
     dirname = Path(__file__).parent

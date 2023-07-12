@@ -80,7 +80,14 @@ class ScheduleFactory:
                 start_t, end_t = classtime[1], classtime[2]
                 for day in classtime[0]:
                     day_mult = self._day_index[day]
-                    ranges.append((start_t + 2400*day_mult, end_t + 2400*day_mult, classtime[4]))
+                    ct_range = (start_t + 2400*day_mult, end_t + 2400*day_mult, classtime[4])
+                    # 7/11/2023: consider a classtime that is an entire superset of the same classtime but in
+                    # a different location. for example, C1 = 9am-5pm in E1-003 and 12pm-5pm in E1-013.
+                    # we should detect this case as a non-conflict (there is a real instance of this).
+                    if len(ranges) > 0:
+                        if ct_range[0] >= ranges[-1][0] and ct_range[1] <= ranges[-1][1]:
+                            continue
+                    ranges.append(ct_range)
         ranges.sort(key=lambda t: t[0])
         for i in range(len(ranges)-1):
             if ranges[i][1] > ranges[i+1][0]:
