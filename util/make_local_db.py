@@ -54,6 +54,7 @@ def process_and_write(raw_class_obj, db_cursor):
     # from time S to E. To write this class time in the db, we need to
     # check that the class time (D, S, E, L) occurs at least 4 times.
     # We can map (D, S, E, L) to a list of dates it occurs and check count.
+    # 7/11/2023: exempt DSEL>=4 check if D is on the weekend.
     instructors = []
     dsel_dates_map = {}
     potentially_biweekly = True
@@ -121,7 +122,7 @@ def process_and_write(raw_class_obj, db_cursor):
         )
 
     for dsel in dsel_dates_map:
-        if len(dsel_dates_map[dsel]) >= 4:
+        if len(dsel_dates_map[dsel]) >= 4 or dsel[0] in ('S', 'U'):
             biweekly = None
             if potentially_biweekly and str(termId) in term_start_dates:
                 biweekly = True
