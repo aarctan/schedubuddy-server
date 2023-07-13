@@ -183,8 +183,8 @@ def retrieve_term_start_dates():
     # "Fall Term and Fall/Winter two-term classes begin. Exceptions may apply; students must consult with their Faculty office."
     # first day of winter in catalog:
     # "Winter Term classes begin. Exceptions may apply; students must consult with their Faculty office."
-    fall_first = datetime.strptime("September 5, 2022", '%B %d, %Y')
-    winter_first = datetime.strptime("January 8, 2023", '%B %d, %Y')
+    fall_first = datetime.strptime("September 5, 2023", '%B %d, %Y')
+    winter_first = datetime.strptime("January 8, 2024", '%B %d, %Y')
     term_start_dates["1850"] = fall_first + timedelta((0 - fall_first.weekday()) % 7)
     term_start_dates["1860"] = winter_first + timedelta((0 - winter_first.weekday()) % 7)
 
