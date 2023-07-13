@@ -81,6 +81,10 @@ def process_and_write(raw_class_obj, db_cursor):
         em = em.replace('\n', ' ')
         if re.search("^Primary Instructor: \w+", em):
             instructor = em.partition("Primary Instructor: ")[2]
+            if "Co-Instructor" in instructor:
+                instructor = instructor[:instructor.find("Co-Instructor")].rstrip()
+            elif "Instructor" in instructor:
+                instructor = instructor[:instructor.find("Instructor")].rstrip().rsplit(' ', 1)[0].rstrip()
             instructors.append(instructor)
         else:
             for parsed in mega_regex.finditer(em):
