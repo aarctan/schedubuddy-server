@@ -76,6 +76,7 @@ class ScheduleFactory:
         ranges = []
         for course_class in (class_a, class_b):
             classtimes = course_class[5]
+            ct_ranges = []
             for classtime in classtimes:
                 start_t, end_t = classtime[1], classtime[2]
                 for day in classtime[0]:
@@ -84,10 +85,17 @@ class ScheduleFactory:
                     # 7/11/2023: consider a classtime that is an entire superset of the same classtime but in
                     # a different location. for example, C1 = 9am-5pm in E1-003 and 12pm-5pm in E1-013.
                     # we should detect this case as a non-conflict (there is a real instance of this).
-                    if len(ranges) > 0:
-                        if ct_range[0] >= ranges[-1][0] and ct_range[1] <= ranges[-1][1]:
-                            continue
-                    ranges.append(ct_range)
+                    if len(ct_ranges) > 0:
+                        is_subset = False
+                        for (existing_range, compare_day) in ct_ranges:
+                            if day == compare_day and ct_range[0] >= existing_range[0] and ct_range[1] <= existing_range[1]:
+                                is_subset = True
+                        if not is_subset:
+                            ct_ranges.append((ct_range, day))
+                    else:
+                        ct_ranges.append((ct_range, day))
+            for (ct_range, _) in ct_ranges:
+                ranges.append(ct_range)
         ranges.sort(key=lambda t: t[0])
         for i in range(len(ranges)-1):
             if ranges[i][1] > ranges[i+1][0]:
