@@ -6,6 +6,12 @@ from datetime import datetime
 DISCORDHOOK = os.environ.get('DISCORDHOOK')
 mst = pytz.timezone('America/Edmonton')
 
+DEFAULTPREFS = {
+    "ONLINE_CLASSES": True,
+    "EVENING_CLASSES": True,
+    "BLACKLIST": [],
+}
+
 def send_discord_message(message):
     webhook_url = DISCORDHOOK
     mst_time = datetime.now(mst)
@@ -136,10 +142,13 @@ class QueryExecutor:
             filtered_components.add(class_row[3])
         return len(possible_components) == len(filtered_components)
         
-    def get_course_classes(self, term:int, course:str, prefs):
-        class_query = "SELECT * FROM uOfAClass WHERE term=? AND course=?"
+    def get_course_classes(self, term:int, course:str, prefs=DEFAULTPREFS):
+        class_query = "SELECT * FROM uOfAClass WHERE term=? AND course=? "
+        if len(prefs["BLACKLIST"]) > 0:
+            for blacklistClassId in prefs["BLACKLIST"]:
+                class_query += f' AND class!="{blacklistClassId}" '
         if prefs["ONLINE_CLASSES"] == False:
-            class_query += " AND instructionMode!=? AND instructionMode!=?"
+            class_query += " AND instructionMode!=? AND instructionMode!=? "
             self._cursor.execute(class_query, (str(term), course, "Remote Delivery", "Internet"))
         else:
             self._cursor.execute(class_query, (str(term), course))
@@ -213,7 +222,8 @@ class QueryExecutor:
             "ONLINE_CLASSES": True if int(prefs_list[1]) == 1 else False,
             "IDEAL_START_TIME": str_t_to_int(start_time_pref)/60,
             "IDEAL_CONSECUTIVE_LENGTH": int(prefs_list[3]),
-            "LIMIT": int(prefs_list[4])
+            "LIMIT": int(prefs_list[4]),
+            "BLACKLIST": [str(c) for c in prefs_list[5][1:-1].split(',')]
         }
         classes = []
         for course_id in course_id_list:

@@ -34,8 +34,8 @@ def api_classes():
     args = request.args
     if "term" not in args or "course" not in args:
         return
-    term_id, course_id = int(args["term"]), args["course"]
-    return jsonify(qe.get_course_classes(term_id, course_id))
+    term_id, course_ids = int(args["term"]), args["course"]
+    return jsonify(qe.get_course_classes(term_id, course_ids))
 
 @app.route("/api/v1/gen-schedules/", methods=['GET', 'POST'])
 def api_gen_schedules():
@@ -49,7 +49,7 @@ def api_gen_schedules():
     if "prefs" in args:
         prefs = args["prefs"]
     else:
-        prefs = [args["evening"], args["online"], args["start"], args["consec"], args["limit"]]
+        prefs = [args["evening"], args["online"], args["start"], args["consec"], args["limit"], args["blacklist"]]
     response = jsonify(qe.get_schedules(term_id, course_id_list, prefs, sf))
     return response
 
