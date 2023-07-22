@@ -257,6 +257,21 @@ class ScheduleFactory:
     # randomly sample from every axis (component) and gather a subset of all
     # possibly valid schedules of size T.
     def generate_schedules(self, courses_obj, prefs):
+        course_conflicts = []
+        for i in range(0, len(courses_obj['objects'])):
+            for j in range(i+1, len(courses_obj['objects'])):
+                c1, c2 = courses_obj['objects'][i], courses_obj['objects'][j]
+                obj = {'objects': [c1, c2]}
+                courses_dict = self._create_course_dict(obj)
+                components, _ = self._create_components(courses_dict)
+                self._build_conflicts_set(components)
+                mrv_model = MRV.MRV_Model(components, self._CONFLICTS)
+                mrv_model.solve()
+                if len(mrv_model.get_valid_schedules()) == 0:
+                    course_conflicts.append(f"{c1['objects'][0]['course']} conflicts with {c2['objects'][0]['course']}")
+        if len(course_conflicts) > 0:
+            return {"schedules":[], "aliases":[],
+                "errmsg": "No valid schedules found. " + ', and '.join(course_conflicts) + '.'}
         courses_dict = self._create_course_dict(courses_obj)
         (components, aliases) = self._create_components(courses_dict)
         cardinality = self._cross_prod_cardinality(components)
