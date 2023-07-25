@@ -6,12 +6,13 @@ from argparse import ArgumentParser
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-enum_weekday = {'M': 0, 'T': 1, 'W': 2, 'H': 3, 'F': 4, 'S': 5, 'U': 6}
 term_start_dates = {}
 year_str = str(datetime.now().year)
 
+
 def days_in_date_range(day, range_start, range_end):
     # Returns a list of dates that a 'day', e.g. 'M', occurs in the range of dates
+    enum_weekday = {'M': 0, 'T': 1, 'W': 2, 'H': 3, 'F': 4, 'S': 5, 'U': 6}
     weekday = enum_weekday[day]
     d_s = datetime.strptime(range_start, '%Y-%m-%d')
     d_e = datetime.strptime(range_end, '%Y-%m-%d')
@@ -111,7 +112,8 @@ def process_and_write(raw_class_obj, db_cursor):
     instructors = str(instructors) if instructors != [] else None
     if len(dsel_dates_map) == 0:
         # if the current year is in any of the embeds, we likely failed to parse a date here, so lets warn about that
-        assert not any(map(lambda x: year_str in x, embeds)), f"The current year is in at least one embed, date parsing failure? {embeds=}"
+        assert not any(map(lambda x: year_str in x,
+                           embeds)), f"The current year is in at least one embed, date parsing failure? {embeds=}"
 
     # only write courses we know the schedules for
     # Write the term if it does not exist
@@ -187,6 +189,7 @@ def retrieve_term_start_dates():
     winter_first = datetime.strptime("January 8, 2024", '%B %d, %Y')
     term_start_dates["1850"] = fall_first + timedelta((0 - fall_first.weekday()) % 7)
     term_start_dates["1860"] = winter_first + timedelta((0 - winter_first.weekday()) % 7)
+
 
 def db_update():
     dirname = Path(__file__).parent
