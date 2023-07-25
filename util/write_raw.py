@@ -1,6 +1,8 @@
+import argparse
 import concurrent.futures
 from concurrent import futures
 from datetime import datetime
+from pathlib import Path
 
 import dateutil.parser as dparser
 import re, requests, os, json, time
@@ -136,14 +138,17 @@ def write_raw(subject, course_num):
                 class_objs.append(raw_obj)
     return class_objs
 
-debug = False
-
 
 def main():
-    dirname = os.path.dirname(__file__)
-    raw_file_path = os.path.join(dirname, "../local/raw.json")
-    raw_file_exists = os.path.exists(raw_file_path)
-    if raw_file_exists:
+    parser = argparse.ArgumentParser(description="write_raw", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--max-workers", type=int, default=3, help="Number of maximum workers to use")
+    parser.add_argument("--debug", action="store_true", help="Enable debugging mode.")
+    args = parser.parse_args()
+    debug = args.debug
+
+    root = Path(__file__).parent.parent
+    raw_file_path = root / "local/raw.json"
+    if raw_file_path.exists():
         os.remove(raw_file_path)
     raw_file = open(raw_file_path, "a")
     subjects = []
@@ -174,7 +179,7 @@ def main():
 
         print(f"Reading {len(course_nums)} course{'s' if len(course_nums) != 1 else ''} in {subject}...")
         subject_buffer = []
-        with futures.ThreadPoolExecutor(max_workers=32) as exe:
+        with futures.ThreadPoolExecutor(max_workers=args.max_workers) as exe:
             write_raw_subject = lambda c_num: write_raw(subject, c_num)
             fut_to_c_num = {exe.submit(write_raw_subject, course_n): course_n for course_n in course_nums}
             # results will come in as they're completed, we need to sort this after the fact
