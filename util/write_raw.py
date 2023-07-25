@@ -13,7 +13,7 @@ CLASS_STRONG_CLASS = "mb-0 mt-4"
 
 # Returns a list of codes from a list on a webpage (i.e., faculty or subject codes)
 def get_link_codes_with_prefix(url, prefix):
-    soup = BeautifulSoup(requests.get(url).text, "lxml")
+    soup = BeautifulSoup(requests.get(url).content, "lxml")
     soups = soup.findAll("a")
     codes = []
     for soup in soups:
@@ -38,7 +38,8 @@ def get_subjects_from_faculty(faculty_code):
 
 # Returns a list of catalogs from a subject, e.g. "CMPUT" -> ['101', '174', ...]
 def get_catalogs_from_subject(subject):
-    courses_soup = BeautifulSoup(requests.get(f"{ROOT}/course/{subject}").text, "lxml")
+    subject = "ZOOLE"
+    courses_soup = BeautifulSoup(requests.get(f"{ROOT}/course/{subject}").content, "lxml")
     course_titles = courses_soup.findAll("h2", {"class": CATALOG_H2_CLASS})
     catalogs = []
     for course_title in course_titles:
@@ -49,7 +50,7 @@ def get_catalogs_from_subject(subject):
 def write_raw(subject, catalog, fp):
     class_objs = []
     course_url = f"{ROOT}/course/{subject}/{catalog}"
-    classes_soup = BeautifulSoup(requests.get(course_url).text, "lxml")
+    classes_soup = BeautifulSoup(requests.get(course_url).content, "lxml")
     soup_divs = classes_soup.findAll("div", {"class": TERM_DIV_CLASS})
     for soup_div in soup_divs:
         term_header = soup_div.find("h2", {"class": TERM_H2_CLASS})
