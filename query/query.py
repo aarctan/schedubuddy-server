@@ -14,6 +14,9 @@ DEFAULTPREFS = {
 
 def send_discord_message(message):
     webhook_url = DISCORDHOOK
+    if webhook_url is None:
+        return
+
     mst_time = datetime.now(mst)
     data = {
         "content": '**' + mst_time.strftime("%Y-%m-%d %I:%M:%S %p") + '**' + '\n' + message

@@ -6,12 +6,13 @@ from argparse import ArgumentParser
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-enum_weekday = {'M': 0, 'T': 1, 'W': 2, 'H': 3, 'F': 4, 'S': 5, 'U': 6}
 term_start_dates = {}
 year_str = str(datetime.now().year)
 
+
 def days_in_date_range(day, range_start, range_end):
     # Returns a list of dates that a 'day', e.g. 'M', occurs in the range of dates
+    enum_weekday = {'M': 0, 'T': 1, 'W': 2, 'H': 3, 'F': 4, 'S': 5, 'U': 6}
     weekday = enum_weekday[day]
     d_s = datetime.strptime(range_start, '%Y-%m-%d')
     d_e = datetime.strptime(range_end, '%Y-%m-%d')
@@ -111,7 +112,8 @@ def process_and_write(raw_class_obj, db_cursor):
     instructors = str(instructors) if instructors != [] else None
     if len(dsel_dates_map) == 0:
         # if the current year is in any of the embeds, we likely failed to parse a date here, so lets warn about that
-        assert not any(map(lambda x: year_str in x, embeds)), f"The current year is in at least one embed, date parsing failure? {embeds=}"
+        assert not any(map(lambda x: year_str in x,
+                           embeds)), f"The current year is in at least one embed, date parsing failure? {embeds=}"
 
     # only write courses we know the schedules for
     # Write the term if it does not exist
@@ -159,7 +161,7 @@ def initialize_db(db_cursor):
     db_cursor.execute(f"CREATE TABLE uOfATerm(term TEXT UNIQUE, termTitle TEXT,\
     startDate TEXT, endDate TEXT)")
     db_cursor.execute(f"CREATE TABLE uOfACourse(term TEXT, course TEXT,\
-    subject TEXT, catalog TEXT, asString TEXT, units TEXT, courseTitle TEXT,\
+    subject TEXT, course_num TEXT, asString TEXT, units TEXT, courseTitle TEXT,\
     subjectTitle TEXT, courseDescription TEXT, career TEXT, faculty TEXT,\
     facultyCode TEXT, department TEXT, departmentCode TEXT)")
     db_cursor.execute(f"CREATE TABLE uOfAClass(term TEXT, course TEXT,\
@@ -179,14 +181,15 @@ def retrieve_term_start_dates():
     # are assumed to have a biweekly flag of 1, and ones that start the week
     # after the first week of labs will have a biweekly flag of 2.
 
-    # first day of fall in catalog:
+    # first day of fall in course_num:
     # "Fall Term and Fall/Winter two-term classes begin. Exceptions may apply; students must consult with their Faculty office."
-    # first day of winter in catalog:
+    # first day of winter in course_num:
     # "Winter Term classes begin. Exceptions may apply; students must consult with their Faculty office."
     fall_first = datetime.strptime("September 5, 2023", '%B %d, %Y')
     winter_first = datetime.strptime("January 8, 2024", '%B %d, %Y')
     term_start_dates["1850"] = fall_first + timedelta((0 - fall_first.weekday()) % 7)
     term_start_dates["1860"] = winter_first + timedelta((0 - winter_first.weekday()) % 7)
+
 
 def db_update():
     dirname = Path(__file__).parent
