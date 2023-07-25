@@ -111,7 +111,7 @@ def write_raw(subject, course_num):
                         clean_raw_cand = list(filter(('').__ne__, raw_candidate.split(' ')))
                         has_syllabus = clean_raw_cand[-1].strip().lower() == "syllabus"
                         section = clean_raw_cand[1].strip()
-                        class_id = clean_raw_cand[-4][1:-2] if has_syllabus else clean_raw_cand[2][1:-1]
+                        class_id = clean_raw_cand[-4].strip()[1:-2] if has_syllabus else clean_raw_cand[2].strip()[1:-1]
                     # col Instructor(s); only deal with primary instructor
                     elif "Primary Instructor: " in raw_candidate:
                         instructor_name = raw_candidate[len("Primary Instructor: ") + 1:]
@@ -156,7 +156,7 @@ def main():
     print(f"starting at {datetime.now()}")
     start = time.perf_counter()
     if debug:
-        subjects = ['PL_SC']
+        subjects = ['WGS']
     else:
         print(f"Reading faculties from course_num...")
         faculty_codes = sorted(get_faculties_from_catalogue())  # ['ED', 'EN', 'SC', ...]
@@ -173,7 +173,7 @@ def main():
     for i, subject in enumerate(subjects):
         print(f"Reading {subject} ({i + 1}/{len(subjects)})...")
         if debug:
-            course_nums = ['352']
+            course_nums = ['240']
         else:
             course_nums = set(get_catalogs_from_subject(subject))  # ['101', '174', ...]
 
