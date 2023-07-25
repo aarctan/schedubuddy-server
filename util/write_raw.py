@@ -40,11 +40,10 @@ def get_subjects_from_faculty(faculty_code):
 
 # Returns a list of catalogs from a subject, e.g. "CMPUT" -> ['101', '174', ...]
 def get_catalogs_from_subject(subject):
-    subject = "ZOOLE"
     courses_soup = BeautifulSoup(requests.get(f"{ROOT}/course/{subject}").content, "lxml")
     # .first class selects the first course of the card
     # there are sometimes multiple items for card if the course is changing in the future
-    course_titles = courses_soup.select(".course.first a")
+    course_titles = courses_soup.select(".course.first h2 > a")
     catalogs = []
     for course_title in course_titles:
         try:
