@@ -162,13 +162,13 @@ def main():
         faculty_codes = sorted(get_faculties_from_catalogue())  # ['ED', 'EN', 'SC', ...]
         print(f"Read {len(faculty_codes)} faculties from course_num.\n")
         print(f"Reading subjects from faculties...")
-        subjects = []
+        subjects = set()
         for faculty_code in faculty_codes:
-            subjects += get_subjects_from_faculty(faculty_code)
-        subjects = sorted(set(subjects))  # ['CHEM, 'CMPUT', 'MATH', ...]
+            subjects.update(get_subjects_from_faculty(faculty_code))
+        subjects = sorted(subjects)  # ['CHEM, 'CMPUT', 'MATH', ...]
+    print(f"Read {len(subjects)} subjects.")
+
     raw_data = []
-    print(f"Read {len(subjects)} subjects.\n")
-    # time.sleep(3)
     failures = []
     for i, subject in enumerate(subjects):
         print(f"Reading {subject} ({i + 1}/{len(subjects)})...")
@@ -186,9 +186,9 @@ def main():
             for fut in concurrent.futures.as_completed(fut_to_c_num):
                 try:
                     subject_buffer.extend(fut.result())
-                except:
+                except Exception as e:
                     course_num = fut_to_c_num[fut]
-                    failures.append(f"{subject} {course_num}")
+                    failures.append(f"{subject} {course_num}: {e}")
         # sort by course num, then term no, then section, then class id. just allows for easier diffs if necessary
         subject_buffer.sort(key=lambda x: (x["catalog"], x["term"], x["section"], x["classId"]))
         raw_data.extend(subject_buffer)
