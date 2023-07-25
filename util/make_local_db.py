@@ -37,7 +37,7 @@ def process_and_write(raw_class_obj, db_cursor):
     termId = raw_class_obj["term"]
     termName = raw_class_obj["termName"]
     subject = raw_class_obj["subject"].replace('_', ' ')
-    catalog = raw_class_obj["course_num"]
+    catalog = raw_class_obj["catalog"]
     courseId = f"{subject} {catalog}"
     classId = raw_class_obj["classId"]
     component = raw_class_obj["component"]
