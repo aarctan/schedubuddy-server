@@ -1,3 +1,7 @@
+import concurrent.futures
+from concurrent import futures
+from datetime import datetime
+
 import dateutil.parser as dparser
 import re, requests, os, json, time
 from bs4 import BeautifulSoup
@@ -41,14 +45,14 @@ def get_subjects_from_faculty(faculty_code):
 # Returns a list of catalogs from a subject, e.g. "CMPUT" -> ['101', '174', ...]
 def get_catalogs_from_subject(subject):
     courses_soup = BeautifulSoup(requests.get(f"{ROOT}/course/{subject}").content, "lxml")
-    # .first class selects the first course of the card
+    # "first" class selects the first course of the card
     # there are sometimes multiple items for card if the course is changing in the future
     course_titles = courses_soup.select(".course.first h2 > a")
     catalogs = []
     for course_title in course_titles:
         try:
-            # eg matches 331 in "CMPUT 331". asserts the subject prefixes the course number
-            pattern = re.escape(subject) + r" (\d{3,4}\w?)"
+            # eg matches 331 in "AN TR 331". asserts the subject prefixes the course number
+            pattern = re.escape(subject.replace("_", " ")) + r" (\d{1,4}\w{1,3})"
             catalogs.append(re.search(pattern, course_title.text).group(1))
         except AttributeError as e:
             raise AttributeError(f"Failed to parse course title {course_title.text=}. "
@@ -59,7 +63,7 @@ def get_catalogs_from_subject(subject):
 def write_raw(subject, course_num):
     print(f"Reading {subject} {course_num}")
     class_objs = []
-    course_url = f"{ROOT}/course/{subject}/{catalog}"
+    course_url = f"{ROOT}/course/{subject}/{course_num}"
     classes_soup = BeautifulSoup(requests.get(course_url).content, "lxml")
     soup_divs = classes_soup.findAll("div", {"class": TERM_DIV_CLASS})
     for soup_div in soup_divs:
@@ -120,7 +124,7 @@ def write_raw(subject, course_num):
                         clean_str = '\n'.join([i.strip() for i in raw_candidate.strip().split('\n') if i.strip() != ''])
                         embeds.append(clean_str)
                 raw_obj = {
-                    "catalog": catalog,
+                    "catalog": course_num,
                     "classId": class_id,
                     "component": component_type,
                     "embeds": embeds,
@@ -131,7 +135,6 @@ def write_raw(subject, course_num):
                 }
                 class_objs.append(raw_obj)
     return class_objs
-
 
 debug = False
 
@@ -145,12 +148,14 @@ def main():
     raw_file = open(raw_file_path, "a")
     subjects = []
     # disable debug mode
+    print(f"starting at {datetime.now()}")
+    start = time.perf_counter()
     if debug:
         subjects = ['PL_SC']
     else:
-        print(f"Reading faculties from catalog...")
+        print(f"Reading faculties from course_num...")
         faculty_codes = sorted(get_faculties_from_catalogue())  # ['ED', 'EN', 'SC', ...]
-        print(f"Read {len(faculty_codes)} faculties from catalog.\n")
+        print(f"Read {len(faculty_codes)} faculties from course_num.\n")
         print(f"Reading subjects from faculties...")
         subjects = []
         for faculty_code in faculty_codes:
@@ -166,23 +171,27 @@ def main():
             course_nums = ['352']
         else:
             course_nums = set(get_catalogs_from_subject(subject))  # ['101', '174', ...]
-        course_nums = sorted(course_nums)
+
         print(f"Reading {len(course_nums)} course{'s' if len(course_nums) != 1 else ''} in {subject}...")
-        for course_num in course_nums:
-            # if course_num != "330":
-            #   continue
-            print(f"Reading {subject} {course_num}")
-            try:
-                raw_objs = write_raw(subject, course_num, raw_file)
-                for raw_obj in raw_objs:
-                    raw_data.append(raw_obj)
-            except:
-                failures.append(f"{subject} {course_num}")
-            # time.sleep(2.5)
+        subject_buffer = []
+        with futures.ThreadPoolExecutor(max_workers=32) as exe:
+            write_raw_subject = lambda c_num: write_raw(subject, c_num)
+            fut_to_c_num = {exe.submit(write_raw_subject, course_n): course_n for course_n in course_nums}
+            # results will come in as they're completed, we need to sort this after the fact
+            for fut in concurrent.futures.as_completed(fut_to_c_num):
+                try:
+                    subject_buffer.extend(fut.result())
+                except:
+                    course_num = fut_to_c_num[fut]
+                    failures.append(f"{subject} {course_num}")
+        # sort by course num, then term no, then section, then class id. just allows for easier diffs if necessary
+        subject_buffer.sort(key=lambda x: (x["catalog"], x["term"], x["section"], x["classId"]))
+        raw_data.extend(subject_buffer)
         print(f"Done reading {subject}.\n")
         print(f"Failures: {failures}")
     raw_file.write(json.dumps(raw_data, sort_keys=True, indent=4))
     raw_file.close()
+    print(f"finished in {time.perf_counter() - start:.1f}s")
 
 
 main()
