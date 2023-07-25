@@ -56,7 +56,8 @@ def get_catalogs_from_subject(subject):
     return catalogs
 
 
-def write_raw(subject, catalog, fp):
+def write_raw(subject, course_num):
+    print(f"Reading {subject} {course_num}")
     class_objs = []
     course_url = f"{ROOT}/course/{subject}/{catalog}"
     classes_soup = BeautifulSoup(requests.get(course_url).content, "lxml")

@@ -37,7 +37,7 @@ def process_and_write(raw_class_obj, db_cursor):
     termId = raw_class_obj["term"]
     termName = raw_class_obj["termName"]
     subject = raw_class_obj["subject"].replace('_', ' ')
-    catalog = raw_class_obj["catalog"]
+    catalog = raw_class_obj["course_num"]
     courseId = f"{subject} {catalog}"
     classId = raw_class_obj["classId"]
     component = raw_class_obj["component"]
@@ -161,7 +161,7 @@ def initialize_db(db_cursor):
     db_cursor.execute(f"CREATE TABLE uOfATerm(term TEXT UNIQUE, termTitle TEXT,\
     startDate TEXT, endDate TEXT)")
     db_cursor.execute(f"CREATE TABLE uOfACourse(term TEXT, course TEXT,\
-    subject TEXT, catalog TEXT, asString TEXT, units TEXT, courseTitle TEXT,\
+    subject TEXT, course_num TEXT, asString TEXT, units TEXT, courseTitle TEXT,\
     subjectTitle TEXT, courseDescription TEXT, career TEXT, faculty TEXT,\
     facultyCode TEXT, department TEXT, departmentCode TEXT)")
     db_cursor.execute(f"CREATE TABLE uOfAClass(term TEXT, course TEXT,\
@@ -181,9 +181,9 @@ def retrieve_term_start_dates():
     # are assumed to have a biweekly flag of 1, and ones that start the week
     # after the first week of labs will have a biweekly flag of 2.
 
-    # first day of fall in catalog:
+    # first day of fall in course_num:
     # "Fall Term and Fall/Winter two-term classes begin. Exceptions may apply; students must consult with their Faculty office."
-    # first day of winter in catalog:
+    # first day of winter in course_num:
     # "Winter Term classes begin. Exceptions may apply; students must consult with their Faculty office."
     fall_first = datetime.strptime("September 5, 2023", '%B %d, %Y')
     winter_first = datetime.strptime("January 8, 2024", '%B %d, %Y')
