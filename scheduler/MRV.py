@@ -27,7 +27,7 @@ class MRV_Model:
                 self.valid_schedules.append(tuple(curr + [c]))
                 self._valid_sched_count += 1
             if index < self._depth:
-                if self._valid_sched_count <= 125000:
+                if self._valid_sched_count <= 12500000:
                     self._mrv_solve(curr + [c], index+1)
 
     def solve(self):

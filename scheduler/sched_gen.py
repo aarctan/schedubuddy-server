@@ -1,5 +1,6 @@
 from random import shuffle
 from . import MRV
+import ctypes, heapq
 
 ASSUMED_COMMUTE_TIME = 30
 
@@ -13,58 +14,39 @@ def str_t_to_int(str_t):
     if not pm and h<12: return h*60+m
     return None
 
+day_mapping = {
+            'M': 0,
+            'T': 1,
+            'W': 2,
+            'H': 3,
+            'F': 4,
+            'S': 5,
+            'U': 6
+}
+    
+class Block(ctypes.Structure):
+    _fields_ = [("Day", ctypes.c_int),
+                ("Start", ctypes.c_int),
+                ("End", ctypes.c_int)]
+    
+so_f = r"C:\Users\muham\Documents\schedubuddy-server\util\evaluate.so"
+functions = ctypes.CDLL(so_f)
+functions.evaluate.argtypes = [ctypes.POINTER(Block), ctypes.c_size_t]
+functions.evaluate.restype = ctypes.c_int
+
 class ValidSchedule:
     def __init__(self, schedule, aliases, blocks, num_pages, prefs):
         self._schedule = schedule
         self._aliases = aliases
-        self._blocks = blocks
         self._num_pages = num_pages
         self._prefs = prefs
-        self.time_variance, self.time_wasted, self.gap_err, self.start_err = 0,0,0,0
-        self._static_evaluate()
-        self.time_wasted_rank = None
-        self.time_var_rank = None
-        self.gap_err_rank = None
-        self.start_err_rank = None
-        self.overall_rank = None
-        self.score = None
-
-    def _static_evaluate(self):
-        ideal_consec_len = self._prefs["IDEAL_CONSECUTIVE_LENGTH"] * 60
-        ideal_start_t = self._prefs["IDEAL_START_TIME"] * 60
-        start_times, end_times = [], []
-        for day in self._blocks.keys():
-            self.time_wasted += ASSUMED_COMMUTE_TIME * 2
-            day_start_t, day_end_t = self._blocks[day][0][0], self._blocks[day][-1][1]
-            start_times.append(day_start_t)
-            end_times.append(day_end_t)
-            self.start_err += (ideal_start_t - day_start_t) **\
-                (3 if day_start_t < ideal_start_t else 2)
-            day_blocks = self._blocks[day]
-            self.time_wasted += day_end_t - day_start_t
-            for block in day_blocks:
-                block_len = block[1] - block[0]
-                self.time_wasted -= block_len
-                self.gap_err += (block_len - ideal_consec_len) **\
-                    (2 if block_len <= ideal_consec_len else 3)
-        self.start_err = self.start_err / len(self._blocks.keys())
-        avg_start_t = sum(start_times) / len(start_times)
-        avg_end_t = sum(end_times) / len(end_times)
-        start_t_var = sum([(t - avg_start_t) ** 2 for t in start_times]) / len(start_times)
-        end_t_var = sum([(t - avg_end_t) ** 2 for t in end_times]) / len(end_times)
-        self.time_variance = start_t_var * 1.5 + end_t_var
-
-    def set_overall_rank(self):
-        adjusted_combined_rank = \
-            self.time_wasted_rank * 1 + \
-            self.time_var_rank    * 1 + \
-            self.gap_err_rank     * 1.5 + \
-            self.start_err_rank   * 1
-        self.adjusted_score = adjusted_combined_rank
+        sched_blocks = (Block * len(blocks))()
+        for i, s in enumerate(blocks):
+            sched_blocks[i] = Block(*s)
+        self.score = functions.evaluate(sched_blocks, len(blocks), 180, 480, 30)
 
 class ScheduleFactory:
     def __init__(self, exhaust_threshold=500000):
-        self._EXHAUST_CARDINALITY_THRESHOLD = exhaust_threshold
         self._day_index = {'M':0, 'T':1, 'W':2, 'H':3, 'F':4, 'S':5, 'U':6}
         self._CONFLICTS = set()
         self._component_blocks = {}
@@ -118,53 +100,32 @@ class ScheduleFactory:
             cardinality *= len(component)
         return cardinality
 
-    def _get_schedule_blocks(self, schedule):
-        day_times_map = {}
-        for course_class in schedule:
-            for time_tuple in course_class[5]:
-                days, start_t, end_t, _, biweekly = time_tuple
-                for day in days:
-                    if not day in day_times_map:
-                        day_times_map[day] = [(start_t, end_t)]
-                    else:
-                        day_times_map[day].append((start_t, end_t))
-        for times in day_times_map.values():
-            if len(times) == 1:
-                continue
-            times.sort()
-            i = 0
-            while i <= len(times)-2:
-                t_i, t_j = times[i], times[i+1]
-                if t_j[0] - t_i[1] <= 15:
-                    times[i] = (t_i[0], t_j[1])
-                    del times[i+1]
-                    i -= 1
-                i += 1
-        return day_times_map
-
     def _master_sort(self, schedules, prefs):
         sched_objs = []
         num_pages = len(schedules)
+        heap = []
+
+        # unique identifier
+        id_counter = 0
+
         for schedule in schedules:
-            blocks = self._get_schedule_blocks(schedule)
+            blocks = [item[:3] for sublist in schedule for item in sublist[5]]
+            blocks = [(day_mapping[t[0]], t[1], t[2]) for t in blocks]
             sched_obj = ValidSchedule(schedule, [], blocks, num_pages, prefs)
-            sched_objs.append(sched_obj)
-        time_var_sorted = sorted(sched_objs, key=lambda SO: SO.time_variance, reverse=True)
-        time_waste_sorted = sorted(sched_objs, key=lambda SO: SO.time_wasted, reverse=True)
-        gap_err_sorted = sorted(sched_objs, key=lambda SO: SO.gap_err, reverse=True)
-        start_err_sorted = sorted(sched_objs, key=lambda SO: SO.start_err, reverse=True)
-        for i, sched_obj in enumerate(gap_err_sorted):
-            sched_obj.gap_err_rank = i+1
-        for i, sched_obj in enumerate(time_var_sorted):
-            sched_obj.time_var_rank = i+1
-        for i, sched_obj in enumerate(time_waste_sorted):
-            sched_obj.time_wasted_rank = i+1
-        for i, sched_obj in enumerate(start_err_sorted):
-            sched_obj.start_err_rank = i+1
-        for sched_obj in sched_objs:
-            sched_obj.set_overall_rank()
-        overall_sorted = sorted(sched_objs, key=lambda SO: SO.adjusted_score, reverse=True)
-        overall_sorted = overall_sorted[:min(prefs["LIMIT"], num_pages)]
+            tie_breaker = len(blocks)  # or any other relevant criteria
+            # Push item onto heap, maintaining the heap invariant.
+            if len(heap) < prefs.get("LIMIT", 100):
+                heapq.heappush(heap, (-sched_obj.score, tie_breaker, id_counter, sched_obj))
+                id_counter += 1
+            else:
+                # If heap size is at limit, push new item and pop smallest item
+                heapq.heappushpop(heap, (-sched_obj.score, tie_breaker, id_counter, sched_obj))
+                id_counter += 1
+
+        # Transform back to positive and sort according to score.
+        overall_sorted = sorted((-score, tie_breaker, id_counter, sched_obj) for score, tie_breaker, id_counter, sched_obj in heap)
+        overall_sorted = [sched_obj for score, tie_breaker, id_counter, sched_obj in overall_sorted]
+
         return overall_sorted
     
     # param course_list is a list of strings of form "SUBJ CATALOG" e.g. "CHEM 101".
@@ -283,8 +244,8 @@ class ScheduleFactory:
         if len(valid_schedules) == 0:
             return {"schedules":[], "aliases":[],
                 "errmsg": "No schedules to display: all schedules have time conflicts."}
-        shuffle(valid_schedules)
+        #shuffle(valid_schedules)
         print(f"Exhaustive (MRV): {len(valid_schedules)}")
-        self._map_components_to_blocks(components)
+        #self._map_components_to_blocks(components)
         sorted_schedules = self._master_sort(valid_schedules, prefs)
         return {"schedules":[[c[0] for c in s._schedule] for s in sorted_schedules], "aliases":aliases}
