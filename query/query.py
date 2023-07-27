@@ -220,13 +220,14 @@ class QueryExecutor:
         start_time_pref = prefs_list[2]
         if len(start_time_pref) == 7: # no trailing 0
             start_time_pref = '0' + start_time_pref
+        blacklist = [str(c) for c in prefs_list[5][1:-1].split(',')]
         prefs = {
             "EVENING_CLASSES": True if int(prefs_list[0]) == 1 else False,
             "ONLINE_CLASSES": True if int(prefs_list[1]) == 1 else False,
             "IDEAL_START_TIME": str_t_to_int(start_time_pref)/60,
             "IDEAL_CONSECUTIVE_LENGTH": int(prefs_list[3]),
             "LIMIT": int(prefs_list[4]),
-            "BLACKLIST": [str(c) for c in prefs_list[5][1:-1].split(',')]
+            "BLACKLIST": blacklist
         }
         classes = []
         for course_id in course_id_list:
@@ -244,7 +245,10 @@ class QueryExecutor:
             except:
                 pass
         logging.debug(c_list)
-        send_discord_message(', '.join(c_list) + ' lookup in term ' + str(term))
+        msg = ', '.join(c_list) + ' lookup in term ' + str(term)
+        if blacklist[0] != '':
+            msg += ' with blacklist [' + ', '.join(blacklist) + ']'
+        send_discord_message(msg)
 
         sched_obj = gen_sched.generate_schedules({"objects":classes}, prefs)
         if "errmsg" in sched_obj:
