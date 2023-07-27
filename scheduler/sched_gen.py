@@ -31,8 +31,8 @@ class Block(ctypes.Structure):
     
 so_f = r"C:\Users\muham\Documents\schedubuddy-server\util\evaluate.so"
 functions = ctypes.CDLL(so_f)
-functions.evaluate.argtypes = [ctypes.POINTER(Block), ctypes.c_size_t]
-functions.evaluate.restype = ctypes.c_int
+functions.evaluate.argtypes = [ctypes.POINTER(Block), ctypes.c_size_t, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+functions.evaluate.restype = ctypes.c_float
 
 class ValidSchedule:
     def __init__(self, schedule, aliases, blocks, num_pages, prefs):
@@ -43,7 +43,7 @@ class ValidSchedule:
         sched_blocks = (Block * len(blocks))()
         for i, s in enumerate(blocks):
             sched_blocks[i] = Block(*s)
-        self.score = functions.evaluate(sched_blocks, len(blocks), 180, 480, 30)
+        self.score = functions.evaluate(sched_blocks, len(blocks), int(prefs["IDEAL_CONSECUTIVE_LENGTH"]) * 60, int(prefs["IDEAL_START_TIME"]) * 60, 30)
 
 class ScheduleFactory:
     def __init__(self, exhaust_threshold=500000):
@@ -103,29 +103,13 @@ class ScheduleFactory:
     def _master_sort(self, schedules, prefs):
         sched_objs = []
         num_pages = len(schedules)
-        heap = []
-
-        # unique identifier
-        id_counter = 0
-
         for schedule in schedules:
             blocks = [item[:3] for sublist in schedule for item in sublist[5]]
             blocks = [(day_mapping[t[0]], t[1], t[2]) for t in blocks]
             sched_obj = ValidSchedule(schedule, [], blocks, num_pages, prefs)
-            tie_breaker = len(blocks)  # or any other relevant criteria
-            # Push item onto heap, maintaining the heap invariant.
-            if len(heap) < prefs.get("LIMIT", 100):
-                heapq.heappush(heap, (-sched_obj.score, tie_breaker, id_counter, sched_obj))
-                id_counter += 1
-            else:
-                # If heap size is at limit, push new item and pop smallest item
-                heapq.heappushpop(heap, (-sched_obj.score, tie_breaker, id_counter, sched_obj))
-                id_counter += 1
-
-        # Transform back to positive and sort according to score.
-        overall_sorted = sorted((-score, tie_breaker, id_counter, sched_obj) for score, tie_breaker, id_counter, sched_obj in heap)
-        overall_sorted = [sched_obj for score, tie_breaker, id_counter, sched_obj in overall_sorted]
-
+            sched_objs.append(sched_obj)
+        overall_sorted = sorted(sched_objs, key=lambda SO: SO.score, reverse=True)
+        overall_sorted = overall_sorted[:min(prefs["LIMIT"], num_pages)]
         return overall_sorted
     
     # param course_list is a list of strings of form "SUBJ CATALOG" e.g. "CHEM 101".
@@ -193,21 +177,6 @@ class ScheduleFactory:
             for class_b in flat_classes:
                 _ = self._conflicts(class_a, class_b)
 
-    def _map_components_to_blocks(self, components):
-        for course_class in components:
-            for component in course_class:
-                if component[0] in self._component_blocks:
-                    continue
-                day_times_map = {}
-                for time_tuple in component[5]:
-                    days, start_t, end_t, _, biweekly = time_tuple
-                    for day in days:
-                        if not day in day_times_map:
-                            day_times_map[day] = [(start_t, end_t)]
-                        else:
-                            day_times_map[day].append((start_t, end_t))
-                self._component_blocks[component[0]] = day_times_map
-
     # Generate valid schedules for a string list of courses. First construct a
     # a list of components, where a "component" is a set of classes where each
     # class contains information such as class time, id, location, etc, and share
@@ -244,8 +213,7 @@ class ScheduleFactory:
         if len(valid_schedules) == 0:
             return {"schedules":[], "aliases":[],
                 "errmsg": "No schedules to display: all schedules have time conflicts."}
-        #shuffle(valid_schedules)
+        shuffle(valid_schedules)
         print(f"Exhaustive (MRV): {len(valid_schedules)}")
-        #self._map_components_to_blocks(components)
         sorted_schedules = self._master_sort(valid_schedules, prefs)
         return {"schedules":[[c[0] for c in s._schedule] for s in sorted_schedules], "aliases":aliases}
