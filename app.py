@@ -77,7 +77,7 @@ def api_all_avail_rooms():
     if not (args.keys() >= {"term","weekday","starttime","endtime"}):
         return jsonify({"message":"provide all required query params!"}), 400
     # Get all distinct classes
-    distinct_rooms = qe.get_avaliable_rooms(args["term"], args["weekday"], args["starttime"], args["endtime"])
+    distinct_rooms = qe.get_available_rooms(args["term"], args["weekday"], args["starttime"], args["endtime"])
     return jsonify({"available_rooms": distinct_rooms }), 200
 
 Compress(app)
