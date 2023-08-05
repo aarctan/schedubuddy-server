@@ -1,3 +1,4 @@
+import operator
 import os, sqlite3, json, sys, logging, requests
 import pytz
 from collections import defaultdict
@@ -280,9 +281,9 @@ class QueryExecutor:
         json_res["aliases"] = {}
         return {"objects": json_res}
 
-    def get_avaliable_rooms(self, term, weekday, starttime, endtime):
+    def get_available_rooms(self, term, weekday, starttime, endtime):
         """
-        Gets all the locations avaliable given timeframe,weekday,and term. Organized by building name. 
+        Gets all the locations available given timeframe,weekday,and term. Organized by building name.
         """
         print(f"Available room lookup for term {term} on {weekday} from {starttime} to {endtime}")
         send_discord_message(f"Available room lookup for term {term} on {weekday} from {starttime} to {endtime}")
@@ -329,13 +330,16 @@ class QueryExecutor:
 
     def _organize_locations(self, all_locations: dict):
         """
-        Given a dictionary of locations, it will created a dictionary of those locations with the 
+        Given a dictionary of locations, it will create a dictionary of those locations with the
         building name as a key, and the list of locations as the value.  
         """
         organized_locations = defaultdict(list)
-        for k, v in all_locations.items():
-            building_name = k.split()[0]
-            v.update({"name": k})
-            organized_locations[building_name].append(v)
+        for full_location, info in all_locations.items():
+            building = full_location.split()[0]
+            info.update({"name": full_location})
+            organized_locations[building].append(info)
+
+        for location, info_list in organized_locations.items():
+            organized_locations[location].sort(key=operator.itemgetter("name"))
         return organized_locations
             
