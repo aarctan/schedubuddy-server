@@ -37,7 +37,7 @@ def api_classes():
     term_id, course_ids = int(args["term"]), args["course"]
     return jsonify(qe.get_course_classes(term_id, course_ids))
 
-@app.route("/api/v1/gen-schedules/", methods=['GET', 'POST'])
+@app.route("/api/v1/gen-schedules/", methods=['GET'])
 def api_gen_schedules():
     args = request.args
     required_args = ("term", "courses")
@@ -53,7 +53,7 @@ def api_gen_schedules():
     response = jsonify(qe.get_schedules(term_id, course_id_list, prefs, sf))
     return response
 
-@app.route("/api/v1/rooms/", methods=['GET', 'POST'])
+@app.route("/api/v1/rooms/", methods=['GET'])
 def api_rooms():
     args = request.args
     if "term" not in args:
@@ -61,7 +61,7 @@ def api_rooms():
     term_id = int(args["term"])
     return jsonify(qe.get_term_rooms(term_id))
 
-@app.route("/api/v1/room-sched/", methods=['GET', 'POST'])
+@app.route("/api/v1/room-sched/", methods=['GET'])
 def api_room_sched():
     args = request.args
     required_args = ("term", "room")
@@ -70,14 +70,14 @@ def api_room_sched():
             return
     return jsonify(qe.get_room_classes(args["term"], args["room"]))
 
-@app.route("/api/all-rooms-open/", methods=['GET', 'POST'])
+@app.route("/api/all-rooms-open/", methods=['GET'])
 def api_all_avail_rooms():
     # ensure good request
     args = request.args
     if not (args.keys() >= {"term","weekday","starttime","endtime"}):
         return jsonify({"message":"provide all required query params!"}), 400
     # Get all distinct classes
-    distinct_rooms = qe.get_avaliable_rooms(args["term"], args["weekday"], args["starttime"], args["endtime"])
+    distinct_rooms = qe.get_available_rooms(args["term"], args["weekday"], args["starttime"], args["endtime"])
     return jsonify({"available_rooms": distinct_rooms }), 200
 
 Compress(app)
