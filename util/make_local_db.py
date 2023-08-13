@@ -128,7 +128,8 @@ def process_and_write(raw_class_obj, db_cursor):
         )
 
     for dsel in dsel_dates_map:
-        if len(dsel_dates_map[dsel]) >= 4 or dsel[0] in ('S', 'U'):
+        ece_errata = subject == "ECE" and catalog in ("202", "210") and component == "LAB" # errata reported in issue 26
+        if len(dsel_dates_map[dsel]) >= 4 or dsel[0] in ('S', 'U') or ece_errata:
             biweekly = None
             if potentially_biweekly and str(termId) in term_start_dates:
                 biweekly = True
@@ -139,6 +140,8 @@ def process_and_write(raw_class_obj, db_cursor):
                         biweekly = None
                 if biweekly:  # check if biweekly flag is 1 or 2
                     biweekly = 1 if (datetimes[0] - term_start_dates[str(termId)]).days <= 7 else 2
+                    if ece_errata: # this may apply to non ECE cases as well in case labs start on the first week
+                        biweekly = 1 if (datetimes[0] - term_start_dates[str(termId)]).days < 0 else 2
             # biweekly = None # temporarily disable biweekly classes
             day, start_t, end_t, location = dsel
             start_t = time.strftime("%I:%M %p", time.strptime(start_t, '%H:%M'))

@@ -263,6 +263,15 @@ class ScheduleFactory:
                 c1, c2 = courses_obj['objects'][i], courses_obj['objects'][j]
                 obj = {'objects': [c1, c2]}
                 courses_dict = self._create_course_dict(obj)
+                c1name, c2name = c1["objects"][0]["course"], c2["objects"][0]["course"]
+                if (c1name == "ECE 202" and c2name == "ECE 210") or (c2name == "ECE 202" and c1name == "ECE 210"):
+                    for ece_class1 in c1["objects"]:
+                        for ece_class2 in c2["objects"]:
+                            if ece_class1["component"] != "LAB" or ece_class2["component"] != "LAB":
+                                continue
+                            if ece_class1["section"] != ece_class2["section"]:
+                                self._CONFLICTS.add((ece_class1["class"], ece_class2["class"]))
+                                self._CONFLICTS.add((ece_class2["class"], ece_class1["class"]))
                 components, _ = self._create_components(courses_dict)
                 self._build_conflicts_set(components)
                 mrv_model = MRV.MRV_Model(components, self._CONFLICTS)
