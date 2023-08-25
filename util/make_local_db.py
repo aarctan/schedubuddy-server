@@ -194,6 +194,12 @@ def retrieve_term_start_dates():
     term_start_dates["1860"] = winter_first + timedelta((0 - winter_first.weekday()) % 7)
 
 
+def prune_db(db_cursor):
+    db_cursor.execute(f"DELETE FROM uOfAClass WHERE class IN (SELECT c.class FROM uOfAClass c LEFT JOIN uOfAClassTime ct\
+                       ON c.class = ct.class WHERE ct.class IS NULL)")
+    db_cursor.execute(f"DELETE FROM uOfACourse WHERE course IN (SELECT c.course FROM uOfACourse c LEFT JOIN uOfAClass cl\
+                       ON c.course = cl.course WHERE cl.course IS NULL)")
+
 def db_update():
     dirname = Path(__file__).parent
     default_db_path = dirname / "../local/cataloguedb.db"
@@ -229,6 +235,7 @@ def db_update():
     retrieve_term_start_dates()
     for raw_class_obj in data:
         process_and_write(raw_class_obj, db_cursor)
+    prune_db(db_cursor)
 
     db_conn.commit()
     db_conn.close()
