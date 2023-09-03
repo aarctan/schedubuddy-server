@@ -9,3 +9,4 @@ gunicorn
 python-dateutil
 lxml
 pytz
+Pillow

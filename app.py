@@ -4,6 +4,7 @@ from flask_cors import CORS
 from flask_compress import Compress
 from query import query
 from scheduler import sched_gen
+from draw import draw_schedule
 
 qe = query.QueryExecutor()
 sf = sched_gen.ScheduleFactory()
@@ -79,6 +80,15 @@ def api_all_avail_rooms():
     # Get all distinct classes
     distinct_rooms = qe.get_available_rooms(args["term"], args["weekday"], args["starttime"], args["endtime"])
     return jsonify({"available_rooms": distinct_rooms }), 200
+
+@app.route("/api/v1/draw-sched/", methods=['GET'])
+def api_draw_sched():
+    args = request.args
+    if not (args.keys() >= {"term","courses","blacklist"}):
+        return jsonify({"message":"provide all required query params!"}), 400
+    sched = qe.get_unique_schedule(args["term"], args["courses"], args["blacklist"])
+    img = draw_schedule.draw_schedule(sched)
+    return jsonify({"image": img.decode("utf-8") }), 200
 
 Compress(app)
 if __name__ == "__main__":

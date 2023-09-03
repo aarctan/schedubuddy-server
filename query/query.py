@@ -4,6 +4,7 @@ import pytz
 from collections import defaultdict
 from datetime import datetime
 
+
 DISCORDHOOK = os.environ.get('DISCORDHOOK')
 mst = pytz.timezone('America/Edmonton')
 
@@ -342,4 +343,20 @@ class QueryExecutor:
         for location, info_list in organized_locations.items():
             organized_locations[location].sort(key=operator.itemgetter("name"))
         return organized_locations
-            
+
+    def get_unique_schedule(self, term, courses, blacklist):
+        course_id_list = [str(c) for c in courses[1:-1].split(',')]
+        blacklist_id_list = [str(c) for c in blacklist[1:-1].split(',')]
+        # for each course, get all its class ids, minus the blacklist, and call _get_class_obj on the remaining ones
+        classes_to_include = []
+        for course in course_id_list:
+            course_query = f"SELECT class FROM uOfAClass WHERE term=? AND course=?"
+            self._cursor.execute(course_query, (str(term), str(course)))
+            class_set = [x[0] for x in self._cursor.fetchall()]
+            diff = [x for x in class_set if not x in blacklist_id_list]
+            classes_to_include += diff
+        json_sched = []
+        for class_id in classes_to_include:
+            class_obj = self._get_class_obj(term, class_id, minimal=True)
+            json_sched.append(class_obj)
+        return {"objects":json_sched}
