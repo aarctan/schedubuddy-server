@@ -186,9 +186,6 @@ def draw_schedule(sched):
         )
         image = image.crop((0, 0, left_margin_offset + x_region_length, y_crop_line))
 
-    #savepath = os.path.join(dirname, "./schedule.png")
-    #image.save(savepath)
-    buffered = BytesIO()
-    image.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue())
-    return img_str
+    savepath = os.path.join(dirname, "./schedule.png")
+    image.save(savepath)
+    return savepath

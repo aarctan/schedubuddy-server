@@ -1,5 +1,5 @@
 import flask, json
-from flask import request, jsonify, abort
+from flask import request, jsonify, send_file
 from flask_cors import CORS
 from flask_compress import Compress
 from query import query
@@ -87,8 +87,8 @@ def api_draw_sched():
     if not (args.keys() >= {"term","courses","blacklist"}):
         return jsonify({"message":"provide all required query params!"}), 400
     sched = qe.get_unique_schedule(args["term"], args["courses"], args["blacklist"])
-    img = draw_schedule.draw_schedule(sched)
-    return jsonify({"image": img.decode("utf-8") }), 200
+    imgpath = draw_schedule.draw_schedule(sched)
+    return send_file(imgpath, download_name='schedule.png', mimetype='image/png')
 
 Compress(app)
 if __name__ == "__main__":
