@@ -9,8 +9,7 @@ import re, requests, os, json, time
 from bs4 import BeautifulSoup
 
 ROOT = "https://apps.ualberta.ca/catalogue"
-TERM_DIV_CLASS = "card"
-TERM_H2_CLASS = "card-header"
+TERM_DIV_CLASS = "mb-5"
 COMPONENT_DIV_CLASS = "col-12"
 COMPONENT_H3_CLASS = "mt-2 d-none d-md-block"
 CLASS_DIV_CLASS = "col-lg-4 col-12 pb-3"
@@ -69,11 +68,10 @@ def write_raw(subject, course_num):
     classes_soup = BeautifulSoup(requests.get(course_url).content, "lxml")
     soup_divs = classes_soup.findAll("div", {"class": TERM_DIV_CLASS})
     for soup_div in soup_divs:
-        term_header = soup_div.find("h2", {"class": TERM_H2_CLASS})
-        term_name, term_id = term_header.text, term_header['id']
-        cont_soup = soup_div.find("div", {"class": "card-body"})
-        num_conts = len(cont_soup.findAll("h3"))
-        children = cont_soup.findChildren(recursive=False)
+        term_header = soup_div.find("h2")
+        term_name, term_id = term_header.text.replace('\n', '').strip(), term_header['id']
+        num_conts = len(soup_div.findAll("h3"))
+        children = soup_div.findChildren(recursive=False)
         # Workaround to skip "This course is changing in this term...":
         # Seek to the first <h3> and truncate all earlier children
         currChild = 0
@@ -83,57 +81,41 @@ def write_raw(subject, course_num):
         for i in range(num_conts):
             component_type = children[i * 2].text[:3].upper()
             component_table = children[i * 2 + 1]
-            headers = component_table.find_all('th')
-            rows = {}
-            for header in headers:
-                header_name = header.text.strip()
-                if header_name == "Capacity":
-                    continue
-                rows[header_name] = []
-                row_soup = component_table.find_all("td", {"data-card-title": header_name})
-                row_count = len(row_soup)
-                for row in row_soup:
-                    col = row.find("div")  # CONTENT
-                    if not col:
-                        rows[header_name].append(None)
-                        continue
-                    raw_candidate = col.text.strip()
-                    rows[header_name].append(raw_candidate)
-            rows = list(rows.values())
-            for row_itr in range(row_count):
-                class_id, section, embeds = None, None, None
-                embeds = ["Capacity: 0"]  # Do not use capacity, need column for compatibility with old db schema
-                candidate_row = [rows[i][row_itr] for i in range(3)]
-                for raw_candidate in candidate_row:
-                    # col Section for class section and class id
-                    # print(raw_candidate)
-                    if component_type in raw_candidate:
-                        clean_raw_cand = list(filter(('').__ne__, raw_candidate.split(' ')))
-                        has_syllabus = clean_raw_cand[-1].strip().lower() == "syllabus"
-                        section = clean_raw_cand[1].strip()
-                        class_id = clean_raw_cand[-4].strip()[1:-2] if has_syllabus else clean_raw_cand[2].strip()[1:-1]
-                    # col Instructor(s); only deal with primary instructor
-                    elif "Primary Instructor: " in raw_candidate:
-                        instructor_name = raw_candidate[len("Primary Instructor: ") + 1:]
-                        embeds.append(f"Primary Instructor: {instructor_name}")
-                    # col for Dates + Times (embed)
-                    elif re.search('\d+-\d+-\d+ \d+:\d+ - \d+:\d+', raw_candidate):
-                        for class_instance in [i.strip() for i in raw_candidate.split('\n')]:
-                            if class_instance == '':
-                                continue
-                            embeds.append(class_instance)
-                    elif re.search('\d+-\d+-\d+ - \d+-\d+-\d+', raw_candidate):
-                        clean_str = '\n'.join([i.strip() for i in raw_candidate.strip().split('\n') if i.strip() != ''])
-                        embeds.append(clean_str)
+            table_body = component_table.find("tbody")
+            table_rows = table_body.find_all("tr")
+            for tr in table_rows:
+                tr_Section = tr.find("td", {"data-card-title": "Section"})
+                tr_DTL = tr.find("td", {"data-card-title": "Dates + Times + Locations"})
+                tr_Instructors = tr.find("td", {"data-card-title": "Instructor(s)"})
+                # Section
+                raw_section = tr_Section.text.replace('\n', '').strip().split(' ')
+                component, section, class_id = raw_section[0], raw_section[1], raw_section[-1]
+                class_id = class_id[1:-1] # remove brackets
+                # Class times
+                div_root = tr_DTL.find("div", {"class": "row row-cols-1 row-cols-lg-3"})
+                divs = div_root.find_all("div", {"class": "col"})
+                num_rows = len(divs) // 3
+                cts = []
+                for i in range(num_rows):
+                    dates, times, loc = divs[i*3], divs[i*3 + 1], divs[i*3 + 2]
+                    ct = (dates.text.strip(), times.text.strip(), loc.text.strip())
+                    cts.append(ct)
+                # Instructors
+                instructor = None
+                instructor_soup = tr_Instructors.find("a")
+                if instructor_soup:
+                    instructor = instructor_soup.text.strip()
+
                 raw_obj = {
-                    "catalog": course_num,
+                    "catalog":course_num,
                     "classId": class_id,
-                    "component": component_type,
-                    "embeds": embeds,
+                    "component": component,
                     "section": section,
+                    "instructor": instructor,
+                    "classTimes": cts,
                     "subject": subject,
                     "term": term_id,
-                    "termName": term_name,
+                    "termName": term_name
                 }
                 class_objs.append(raw_obj)
     return class_objs
@@ -156,7 +138,7 @@ def main():
     print(f"starting at {datetime.now()}")
     start = time.perf_counter()
     if debug:
-        subjects = ['WGS']
+        subjects = ['CHEM']
     else:
         print(f"Reading faculties from course_num...")
         faculty_codes = sorted(get_faculties_from_catalogue())  # ['ED', 'EN', 'SC', ...]
@@ -173,7 +155,7 @@ def main():
     for i, subject in enumerate(subjects):
         print(f"Reading {subject} ({i + 1}/{len(subjects)})...")
         if debug:
-            course_nums = ['240']
+            course_nums = ['101']
         else:
             course_nums = set(get_catalogs_from_subject(subject))  # ['101', '174', ...]
 
