@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class Course:
     subject: str  # eg CMPUT, ENGL
     number: str  # eg 174, 205A
-    
+
     def __hash__(self):
         return hash(self.number + self.subject)
 
@@ -184,7 +184,7 @@ class Scraper:
             logger.error(fail)
         return sorted(courses, key=operator.attrgetter("subject", "number"))
 
-    def preprocess_all_courses(self, courses: list[Course]) -> list[dict]:
+    def process_all_course_terms_from_courses(self, courses: list[Course]) -> list[dict]:
         """
         Returns a list of all preprocessed information every course in the list
         """
@@ -227,9 +227,15 @@ class Scraper:
                 for tr in table_rows:
                     # Section
                     tr_section = tr.find("td", {"data-card-title": "Section"})
-                    raw_section = tr_section.text.replace("\n", "").strip().split(" ")
-                    component, section, *_, class_id = raw_section
-                    class_id = class_id.strip("()")
+                    tr_section_pattern = (
+                        r"^\s*(lecture|lab|lecture/lab|lab/lecture|seminar|clinical|thesis)\s*"  # component type
+                        r"([a-z\d]{1,6})\s*"  # section
+                        r"\((\d{5})\)"  # class ID
+                    )
+                    section_search = re.search(
+                        tr_section_pattern, tr_section.text, re.IGNORECASE
+                    )
+                    component, section, class_id = section_search.group(1, 2, 3)
 
                     # Class times
                     tr_date_time_location_div = tr.find(
@@ -361,14 +367,14 @@ def main(args):
 
     with measure_time() as p_time:
         logger.info(f"processing {len(courses)} courses")
-        preprocessed_course_instances = scraper.preprocess_all_courses(courses)
+        course_instances = scraper.process_all_course_terms_from_courses(courses)
         logger.info(
-            f"processing {len(preprocessed_course_instances)} course instances took {p_time():.2f}s"
+            f"processing {len(course_instances)} course terms took {p_time():.2f}s"
         )
 
-    if len(preprocessed_course_instances) > 0:
+    if len(course_instances) > 0:
         with open(root / "raw.json", "w") as raw:
-            json.dump(preprocessed_course_instances, raw, sort_keys=True, indent=4)
+            json.dump(course_instances, raw, sort_keys=True, indent=4)
     else:
         logger.warning("no preprocessed course instances produced, skipping write")
     logger.info(f"completed in {time.perf_counter() - start:.2f}s")
