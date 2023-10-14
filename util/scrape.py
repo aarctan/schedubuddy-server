@@ -8,9 +8,9 @@ import time
 from concurrent import futures
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Callable, Tuple, Any
+from typing import Callable, Any
 from urllib.parse import urlparse
 
 import requests
@@ -56,7 +56,7 @@ class Scraper:
             return False
 
         delta_minutes = (
-            datetime.fromtimestamp(file.stat().st_mtime) - datetime.now()
+            datetime.now() - datetime.fromtimestamp(file.stat().st_mtime) 
         ).total_seconds() / 60
         return delta_minutes > self.cache_ttl_minutes
 
@@ -90,7 +90,7 @@ class Scraper:
         # guard against corrupted, empty cached responses
         if len(resp) == 0:
             self.cache_misses += 1
-            logger.debug(f"cache not valid or non-existant, populating it for {url=}")
+            logger.debug(f"cache not valid or non-existent, populating it for {url=}")
             web_resp = requests.get(url)
             if web_resp.status_code == 200 and len(web_resp.content):
                 resp = web_resp.content
@@ -98,7 +98,7 @@ class Scraper:
                     req_content.write(resp)
             else:
                 raise ValueError(
-                    f"request to {url=} failed with non-200 status code {resp.status_code=} or empty response"
+                    f"request to {url=} failed with non-200 status code {web_resp.status_code=} or empty response"
                 )
         else:
             self.cache_hits += 1
@@ -137,12 +137,10 @@ class Scraper:
 
     def get_all_subjects_from_faculties(self, faculties: list[str]) -> list[str]:
         """Given multiple faculties, return all subjects associated with any of the faculties"""
-        subjects, failures = self._process_multithreaded(
+        subjects = self._process_multithreaded(
             self._get_subjects_from_faculty, faculties
         )
-        for fail in failures:
-            logger.error(fail)
-        # some subjects are cross faculty, so we need to eliminate duplicates here
+        # some subjects are cross-listed, so we need to eliminate duplicates here
         return sorted(set(subjects))
 
     def _get_courses_from_subject(self, subject: str) -> list[Course]:
@@ -177,20 +175,16 @@ class Scraper:
         Given a list of subjects, returns a list of courses
         Eg [CMPUT, ENGL] -> [CMPUT 174, ENGL 100, ...]
         """
-        courses, failures = self._process_multithreaded(
-            self._get_courses_from_subject, subjects
-        )
-        for fail in failures:
-            logger.error(fail)
+        courses = self._process_multithreaded(self._get_courses_from_subject, subjects)
         return sorted(courses, key=operator.attrgetter("subject", "number"))
 
-    def process_all_course_terms_from_courses(self, courses: list[Course]) -> list[dict]:
+    def process_all_course_terms_from_courses(
+        self, courses: list[Course]
+    ) -> list[dict]:
         """
         Returns a list of all preprocessed information every course in the list
         """
-        preprocessed_courses, errors = self._process_multithreaded(
-            self._preprocess_course, courses
-        )
+        preprocessed_courses = self._process_multithreaded(self._preprocess_course, courses)
         # sort by course number, term no, section, and finally class id
         # (this makes it easier to diff for changes and spot errors easier)
         return sorted(
@@ -279,15 +273,14 @@ class Scraper:
 
     def _process_multithreaded(
         self, fn: Callable[[Any], list[Any]], input_data: list
-    ) -> Tuple[list, list]:
+    ) -> list:
         """
         Given a list of input data and a function to process that data with,
          processing the data with a ThreadPoolExecutor.
 
-        Returns a tuple of a list of results, as well as a list of failures and the reason.
+        Returns a list of results
         """
         result = []
-        failures = []
         with futures.ThreadPoolExecutor(max_workers=self.max_workers) as exe:
             # map the future to the subject, that way we can tell what subject failed
             fut_to_input = {exe.submit(fn, x): x for x in input_data}
@@ -296,8 +289,8 @@ class Scraper:
                 result.extend(fut.result())
             except Exception as e:
                 input_obj = fut_to_input[fut]
-                failures.append(f"scraping {input_obj=} failed: {e}")
-        return result, failures
+                logger.error(f"scraping {input_obj=} failed: {e}")
+        return result
 
 
 def cli():
@@ -341,8 +334,9 @@ def main(args):
     """
     debug = args.debug
     logger.setLevel(logging.DEBUG if debug else logging.INFO)
-    logger.debug("debug mode active")
+    logger.debug("debug mode is active")
     logger.debug(f"{args=}")
+    logger.info(f"Cache TTL = {timedelta(seconds=args.cache_ttl * 60)}")
     root = Path(args.scrape_root).absolute()
     scraper = Scraper(
         cache_dir=root / ".cache",
