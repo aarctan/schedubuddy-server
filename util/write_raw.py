@@ -171,7 +171,7 @@ def main():
                 except Exception as e:
                     course_num = fut_to_c_num[fut]
                     failures.append(f"{subject} {course_num}: {e}")
-        # sort by course num, then term no, then section, then class id. just allows for easier diffs if necessary
+        # sort by course number, then term no, then section, then class id. just allows for easier diffs if necessary
         subject_buffer.sort(key=lambda x: (x["catalog"], x["term"], x["section"], x["classId"]))
         raw_data.extend(subject_buffer)
         print(f"Done reading {subject}.\n")
