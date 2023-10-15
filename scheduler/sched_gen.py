@@ -65,7 +65,7 @@ class ValidSchedule:
 class ScheduleFactory:
     def __init__(self, exhaust_threshold=500000):
         self._EXHAUST_CARDINALITY_THRESHOLD = exhaust_threshold
-        self._day_index = {'M':0, 'T':1, 'W':2, 'H':3, 'F':4, 'S':5, 'U':6}
+        self._day_index = {'M':0, 'T':1, 'W':2, 'H':3, 'R':3, 'F':4, 'S':5, 'U':6}
         self._CONFLICTS = set()
         self._component_blocks = {}
 

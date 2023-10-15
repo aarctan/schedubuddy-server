@@ -1,9 +1,9 @@
 import random
-import re, os, sqlite3, json, time
+import re, sqlite3, json, time
 import string
 import sys
 from argparse import ArgumentParser
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 term_start_dates = {}
@@ -12,13 +12,13 @@ year_str = str(datetime.now().year)
 
 def days_in_date_range(day, range_start, range_end):
     # Returns a list of dates that a 'day', e.g. 'M', occurs in the range of dates
-    enum_weekday = {'M': 0, 'T': 1, 'W': 2, 'H': 3, 'F': 4, 'S': 5, 'U': 6}
+    enum_weekday = {'M': 0, 'T': 1, 'W': 2, 'H': 3, 'R': 3, 'F': 4, 'S': 5, 'U': 6}
     weekday = enum_weekday[day]
     d_s = datetime.strptime(range_start, '%Y-%m-%d')
     d_e = datetime.strptime(range_end, '%Y-%m-%d')
     dates = []
     for d_ord in range(d_s.toordinal(), d_e.toordinal() + 1):
-        d = date.fromordinal(d_ord)
+        d = datetime.fromordinal(d_ord)
         if (d.weekday() == weekday):
             dates.append(d)
     return set(dates)
@@ -40,11 +40,16 @@ def process_and_write(raw_class_obj, db_cursor):
     catalog = raw_class_obj["catalog"]
     courseId = f"{subject} {catalog}"
     classId = raw_class_obj["classId"]
-    component = raw_class_obj["component"]
+    component = raw_class_obj["component"][:3]
     section = raw_class_obj["section"]
-    embeds = raw_class_obj["embeds"]
-    instructionMode = "Online" if raw_class_obj.get("online") else "In Person"
+    classTimes = raw_class_obj["classTimes"]
+    instructor = raw_class_obj["instructor"]
+    instructionMode = "In Person"
 
+    # Exit if this class has no times. We ignore asynchronous classes, or classes currently not offered.
+    if len(classTimes) == 0:
+        return
+    
     # Exit if this class has already been written
     db_cursor.execute("SELECT * FROM uOfAClass WHERE term=? AND course=? AND class=?", (termId, courseId, classId))
     if db_cursor.fetchone():
@@ -56,64 +61,33 @@ def process_and_write(raw_class_obj, db_cursor):
     # check that the class time (D, S, E, L) occurs at least 4 times.
     # We can map (D, S, E, L) to a list of dates it occurs and check count.
     # 7/11/2023: exempt DSEL>=4 check if D is on the weekend.
-    instructors = []
     dsel_dates_map = {}
     potentially_biweekly = True
+    date_pattern = r"\d{4}-\d{2}-\d{2}" # e.g. 2024-01-08
 
-    # Range of dates, e.g. "2022-01-05 - 2022-04-08 MWF 12:00 - 12:50 (CCIS L2-190)"
-    # It's possible for there to be multiple ranges, in which case we need to create
-    # classtimes for all of them. Also possible to see single date and time, e.g. "2022-01-19 18:00 - 20:50 (TBD)"
-    # the mega-regex takes care of all of this. In re.VERBOSE mode, whitespace is ignore unless escape, and comments
-    # can be made with hashtags
-    mega_regex = re.compile(r"""
-        # start date should always be present ex '2022-01-19 '
-        (?P<start_d>\d+-\d+-\d+)
-        # The end date and days are not always present but when they are they'll look like this ' - 2022-04-08 MWF'
-        (\ -\ (?P<end_d>\d+-\d+-\d+)\ (?P<days>\w+))?\ 
-        # start time should always be present ex '12:00 - '
-        (?P<start_t>\d+:\d+)\ -\ 
-        # end time should always be present ex '12:50'
-        (?P<end_t>\d+:\d+)
-        # location will not always be present, but when it is it'll look like this: ' (CCIS L2-190)'
-        (\ \((?P<location>.*?)\))?
-    """, re.VERBOSE)
+    for classtime in classTimes:
+        dates, times, loc = classtime[0], classtime[1], classtime[2]
+        if not '-' in times:
+            continue
+        start_t_str, end_t_str = times.split(' - ')
+        start_t = time.strftime("%I:%M %p", time.strptime(start_t_str, '%H:%M'))
+        end_t = time.strftime("%I:%M %p", time.strptime(end_t_str, '%H:%M'))
+        if '(' in dates: # date range, e.g. "2024-01-08 - 2024-02-01 (MWF)"
+            days = re.search(r"\((\w+)\)", dates) # days = MWF
+            days = days.group(0)[1:-1]
+            dates = re.findall(date_pattern, dates)
+            start_date, end_date = dates[0], dates[1]
+            for day in days:
+                key = (day, start_t, end_t, loc)
+                dsel_dates_map.setdefault(key, set()).update(days_in_date_range(day, start_date, end_date))
+        else: # single date, e.g. "2023-09-20"
+            date = re.findall(date_pattern, dates)[0]
+            class_date = datetime.strptime(date, "%Y-%m-%d")
+            day = "MTWHFSU"[class_date.weekday()]
+            key = (day, start_t, end_t, loc)
+            dsel_dates_map.setdefault(key, set()).add(class_date)
 
-    for em in embeds:
-        em = em.replace('\n', ' ')
-        if re.search("^Primary Instructor: \w+", em):
-            instructor = em.partition("Primary Instructor: ")[2]
-            if "Co-Instructor" in instructor:
-                instructor = instructor[:instructor.find("Co-Instructor")].rstrip()
-            elif "Instructor" in instructor:
-                instructor = instructor[:instructor.find("Instructor")].rstrip().rsplit(' ', 1)[0].rstrip()
-            instructors.append(instructor)
-        else:
-            for parsed in mega_regex.finditer(em):
-                p = parsed.groupdict()
-                keys = []
-                # ie, location is assigned if it's not None or TBD
-                location = p["location"] if p["location"] not in (None, "TBD") else None
-                if not p["end_d"]:
-                    # Single date and time, e.g. "2022-01-19 18:00 - 20:50 (TBD)"
-                    # indicates we're dealing with a single date and time
-                    class_date = datetime.strptime(p["start_d"], "%Y-%m-%d")
-                    class_day = "MTWHFSU"[class_date.weekday()]
-                    key = (class_day, p["start_t"], p["end_t"], location)
-                    assert is_valid_key(key)
-                    dsel_dates_map.setdefault(key, set()).add(class_date)
-                else:
-                    # "normal" date ranges
-                    potentially_biweekly = False
-                    for day in p["days"]:
-                        key = (day, p["start_t"], p["end_t"], location)
-                        assert is_valid_key(key)
-                        dsel_dates_map.setdefault(key, set()).update(days_in_date_range(day, p["start_d"], p["end_d"]))
-
-    instructors = str(instructors) if instructors != [] else None
-    if len(dsel_dates_map) == 0:
-        # if the current year is in any of the embeds, we likely failed to parse a date here, so lets warn about that
-        assert not any(map(lambda x: year_str in x,
-                           embeds)), f"The current year is in at least one embed, date parsing failure? {embeds=}"
+    instructors = '[\'' + instructor + '\']' if instructor else None
 
     # only write courses we know the schedules for
     # Write the term if it does not exist
@@ -144,8 +118,6 @@ def process_and_write(raw_class_obj, db_cursor):
                         biweekly = 1 if (datetimes[0] - term_start_dates[str(termId)]).days < 0 else 2
             # biweekly = None # temporarily disable biweekly classes
             day, start_t, end_t, location = dsel
-            start_t = time.strftime("%I:%M %p", time.strptime(start_t, '%H:%M'))
-            end_t = time.strftime("%I:%M %p", time.strptime(end_t, '%H:%M'))
             query = "INSERT INTO uOfAClassTime Values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             db_cursor.execute(query, (termId, courseId, classId, location, None, None,
                                       day, start_t, end_t, biweekly))
