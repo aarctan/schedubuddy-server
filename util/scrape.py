@@ -6,7 +6,6 @@ import operator
 import re
 import time
 from concurrent import futures
-from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -32,12 +31,6 @@ class Course:
         return f"<Course {self.subject} {self.number}>"
 
 
-@contextmanager
-def measure_time():
-    start = time.perf_counter()
-    yield lambda: time.perf_counter() - start
-
-
 class Scraper:
     ROOT = "https://apps.ualberta.ca/catalogue"
 
@@ -56,7 +49,7 @@ class Scraper:
             return False
 
         delta_minutes = (
-            datetime.now() - datetime.fromtimestamp(file.stat().st_mtime) 
+            datetime.now() - datetime.fromtimestamp(file.stat().st_mtime)
         ).total_seconds() / 60
         return delta_minutes > self.cache_ttl_minutes
 
@@ -184,7 +177,9 @@ class Scraper:
         """
         Returns a list of all preprocessed information every course in the list
         """
-        preprocessed_courses = self._process_multithreaded(self._preprocess_course, courses)
+        preprocessed_courses = self._process_multithreaded(
+            self._preprocess_course, courses
+        )
         # sort by course number, term no, section, and finally class id
         # (this makes it easier to diff for changes and spot errors easier)
         return sorted(
@@ -344,27 +339,28 @@ def main(args):
         max_workers=args.max_workers,
     )
     start = time.perf_counter()
-    with measure_time() as f_time:
-        logger.info("retrieving faculties")
-        faculties = scraper.get_all_faculties()
-        logger.info(f"retrieving faculties took {f_time():.2f}s")
 
-    with measure_time() as s_time:
-        logger.info(f"retrieving subjects from {len(faculties)} faculties")
-        subjects = scraper.get_all_subjects_from_faculties(faculties)
-        logger.info(f"retrieving subjects took {s_time():.2f}s")
+    f_time = time.perf_counter()
+    logger.info("retrieving faculties")
+    faculties = scraper.get_all_faculties()
+    logger.info(f"retrieving faculties took {time.perf_counter() - f_time:.2f}s")
 
-    with measure_time() as c_time:
-        logger.info(f"retrieving courses from {len(subjects)} subjects")
-        courses = scraper.get_all_courses_from_subjects(subjects)
-        logger.info(f"retrieving courses took {c_time():.2f}s")
+    s_time = time.perf_counter()
+    logger.info(f"retrieving subjects from {len(faculties)} faculties")
+    subjects = scraper.get_all_subjects_from_faculties(faculties)
+    logger.info(f"retrieving subjects took {time.perf_counter() - s_time:.2f}s")
 
-    with measure_time() as p_time:
-        logger.info(f"processing {len(courses)} courses")
-        course_instances = scraper.process_all_course_terms_from_courses(courses)
-        logger.info(
-            f"processing {len(course_instances)} course terms took {p_time():.2f}s"
-        )
+    c_time = time.perf_counter()
+    logger.info(f"retrieving courses from {len(subjects)} subjects")
+    courses = scraper.get_all_courses_from_subjects(subjects)
+    logger.info(f"retrieving courses took {time.perf_counter() - c_time:.2f}s")
+
+    p_time = time.perf_counter()
+    logger.info(f"processing {len(courses)} courses")
+    course_instances = scraper.process_all_course_terms_from_courses(courses)
+    logger.info(
+        f"processing {len(course_instances)} course terms took {time.perf_counter() - p_time:.2f}s"
+    )
 
     if len(course_instances) > 0:
         with open(root / "raw.json", "w") as raw:
