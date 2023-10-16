@@ -49,6 +49,7 @@ class Scraper:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_ttl_minutes = cache_ttl_minutes
         self.max_workers = max_workers
+        self.oldest_cache_entry_time = datetime.now()
         self.concurrent_impl = (
             concurrent.futures.ProcessPoolExecutor
             if use_processes
@@ -58,13 +59,13 @@ class Scraper:
         self.http_client = requests.Session()
 
     def _ttl_expired(self, file: Path) -> bool:
-        if self.cache_ttl_minutes == -1:
-            return False
-
-        delta_minutes = (
-            datetime.now() - datetime.fromtimestamp(file.stat().st_mtime)
-        ).total_seconds() / 60
-        return delta_minutes > self.cache_ttl_minutes
+        file_mtime = datetime.fromtimestamp(file.stat().st_mtime)
+        if self.cache_ttl_minutes != -1:
+            delta_minutes = (datetime.now() - file_mtime).total_seconds() / 60
+            if delta_minutes > self.cache_ttl_minutes:
+                self.oldest_cache_entry_time = min(self.oldest_cache_entry_time, file_mtime)
+                return True
+        return False
 
     def _cached_get(self, url: str, *args, **kwargs) -> bytes:
         """
@@ -304,7 +305,7 @@ class Scraper:
         else:
             partial_tqdm = lambda x: x
         result = []
-        with futures.ProcessPoolExecutor(max_workers=self.max_workers) as exe:
+        with self.concurrent_impl(max_workers=self.max_workers) as exe:
             # map the future to the subject, that way we can tell what subject failed
             fut_to_input = {exe.submit(fn, x): x for x in input_data}
 
@@ -399,6 +400,9 @@ def main(args):
     logger.info(f"retrieving courses took {time.perf_counter() - c_time:.2f}s")
 
     p_time = time.perf_counter()
+    # reset oldest_cache_entry_time
+    # we don't care if eg the faculty pages were old, we DO care if course pages are
+    scraper.oldest_cache_entry_time = datetime.now()
     logger.info(f"processing {len(courses)} courses")
     course_instances = scraper.process_all_course_terms_from_courses(courses)
     logger.info(
