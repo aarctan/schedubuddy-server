@@ -294,7 +294,7 @@ class Scraper:
         else:
             partial_tqdm = lambda x: x
         result = []
-        with futures.ThreadPoolExecutor(max_workers=self.max_workers) as exe:
+        with futures.ProcessPoolExecutor(max_workers=self.max_workers) as exe:
             # map the future to the subject, that way we can tell what subject failed
             fut_to_input = {exe.submit(fn, x): x for x in input_data}
 
