@@ -7,7 +7,15 @@ This is useful for when a student knows the courses they wish to take, and wants
 
 ## How to update
 
-Run write_raw.py in the util folder. It is recommended to use a sleep interval of at least a few seconds to not flood http requests. You should see a list of failures, please note them down so they can be tracked. Afterwards, run make_local_db script. This will update the actual .db that is queried. You can then run the flask app and check that classes were added, updated (prof info), or removed. We only track current and future terms.
+Run `scrape.py` in the [util]() folder.
+The Catalogue site changes the HTML occasionally,
+and usually this is the file that will need correcting if that's the case.
+This will scrape all the courses listed on the catalogue,
+and generate a `raw.json` which contains characterizing information for each course instance. Afterward, run `make_local_db.py` to create the SQLite DB the backend queries.
+
+
+You can then run the flask app and check that classes were added, updated (prof info), or removed.
+We only track current and future terms.
 
 ## API
 
