@@ -37,7 +37,11 @@ class Scraper:
     ROOT = "https://apps.ualberta.ca/catalogue"
 
     def __init__(
-        self, cache_dir: Path, cache_ttl_minutes: float, max_workers: int
+        self,
+        cache_dir: Path,
+        cache_ttl_minutes: float,
+        max_workers: int,
+        use_processes: bool,
     ) -> None:
         self.cache_hits = 0
         self.cache_misses = 0
@@ -45,6 +49,12 @@ class Scraper:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_ttl_minutes = cache_ttl_minutes
         self.max_workers = max_workers
+        self.concurrent_impl = (
+            concurrent.futures.ProcessPoolExecutor
+            if use_processes
+            else concurrent.futures.ThreadPoolExecutor
+        )
+        self.use_processes = use_processes
         self.http_client = requests.Session()
 
     def _ttl_expired(self, file: Path) -> bool:
@@ -294,7 +304,7 @@ class Scraper:
         else:
             partial_tqdm = lambda x: x
         result = []
-        with futures.ThreadPoolExecutor(max_workers=self.max_workers) as exe:
+        with futures.ProcessPoolExecutor(max_workers=self.max_workers) as exe:
             # map the future to the subject, that way we can tell what subject failed
             fut_to_input = {exe.submit(fn, x): x for x in input_data}
 
@@ -312,6 +322,7 @@ def cli():
     parser = argparse.ArgumentParser(
         description="scrape", formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
+    parser.add_argument("--debug", action="store_true", help="Enable debugging mode.")
     parser.add_argument(
         "--cache-ttl",
         type=float,
@@ -321,16 +332,23 @@ def cli():
     )
     parser.add_argument(
         "--max-workers",
+        "-j",
         type=int,
         default=3,
         help="Number of maximum workers to use for scraping course pages",
     )
-    parser.add_argument("--debug", action="store_true", help="Enable debugging mode.")
     parser.add_argument(
         "--scrape-root",
         type=str,
         default=Path(__file__).parent.parent / "local",
         help="Base directory to store scraper cache and output",
+    )
+    parser.add_argument(
+        "--use-processes",
+        action="store_true",
+        help="uses processes instead of threads for the parallel compute implementation. "
+        "This is only recommended when you know most things you are going to access will be cached, "
+        "as this disables sharing HTTP sessions.",
     )
     args = parser.parse_args()
     main(args)
@@ -355,14 +373,13 @@ def main(args):
         if args.cache_ttl > 0
         else "infinite"
     )
-    logger.info(
-        f"max_workers={args.max_workers} cache_ttl=(cache_ttl_text)"
-    )
+    logger.info(f"max_workers={args.max_workers} cache_ttl=(cache_ttl_text)")
     root = Path(args.scrape_root).absolute()
     scraper = Scraper(
         cache_dir=root / ".cache",
         cache_ttl_minutes=args.cache_ttl,
         max_workers=args.max_workers,
+        use_processes=args.use_processes,
     )
     start = time.perf_counter()
 
