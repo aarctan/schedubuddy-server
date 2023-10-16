@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Callable, Any
 from urllib.parse import urlparse
 
-import httpx
+import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
@@ -45,7 +45,7 @@ class Scraper:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_ttl_minutes = cache_ttl_minutes
         self.max_workers = max_workers
-        self.http_client = httpx.Client()
+        self.http_client = requests.Session()
 
     def _ttl_expired(self, file: Path) -> bool:
         if self.cache_ttl_minutes == -1:
@@ -87,7 +87,7 @@ class Scraper:
         if len(resp) == 0:
             self.cache_misses += 1
             logger.debug(f"cache not valid or non-existent, populating it for {url=}")
-            web_resp = httpx.get(url)
+            web_resp = self.http_client.get(url)
             if web_resp.status_code == 200 and len(web_resp.content):
                 resp = web_resp.content
                 with open(cached_location, "wb") as req_content:
@@ -270,7 +270,10 @@ class Scraper:
         return class_objs
 
     def _process_multithreaded(
-        self, fn: Callable[[Any], list[Any]], input_data: list, progress_bar_units: str | None = None
+        self,
+        fn: Callable[[Any], list[Any]],
+        input_data: list,
+        progress_bar_units: str | None = None,
     ) -> list:
         """
         Given a list of input data and a function to process that data with,
@@ -281,7 +284,13 @@ class Scraper:
         Returns a list of results
         """
         if progress_bar_units is not None:
-            partial_tqdm = partial(tqdm, unit_scale=True, unit=progress_bar_units, total=len(input_data), miniters=1)
+            partial_tqdm = partial(
+                tqdm,
+                unit_scale=True,
+                unit=progress_bar_units,
+                total=len(input_data),
+                smoothing=0.25,
+            )
         else:
             partial_tqdm = lambda x: x
         result = []
