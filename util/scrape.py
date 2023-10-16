@@ -348,7 +348,7 @@ def cli():
         action="store_true",
         help="uses processes instead of threads for the parallel compute implementation. "
         "This is only recommended when you know most things you are going to access will be cached, "
-        "as this disables sharing HTTP sessions.",
+        "as this disables sharing HTTP sessions. Higher -j reccomended in conjunction with this flag",
     )
     args = parser.parse_args()
     main(args)
