@@ -1,12 +1,12 @@
-ldap3
 Flask
-ortools
 Flask_Compress
 Flask_Cors
-requests
+Pillow==9.5.0
 beautifulsoup4
 gunicorn
-python-dateutil
 lxml
+ortools
+python-dateutil
 pytz
-Pillow==9.5.0
+requests
+tqdm

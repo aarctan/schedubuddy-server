@@ -8,12 +8,14 @@ import time
 from concurrent import futures
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from functools import partial
 from pathlib import Path
 from typing import Callable, Any
 from urllib.parse import urlparse
 
-import requests
+import httpx
 from bs4 import BeautifulSoup
+from tqdm import tqdm
 
 logging.basicConfig(format="%(asctime)s [%(levelname)s]: %(message)s")
 logger = logging.getLogger(__name__)
@@ -43,6 +45,7 @@ class Scraper:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_ttl_minutes = cache_ttl_minutes
         self.max_workers = max_workers
+        self.http_client = httpx.Client()
 
     def _ttl_expired(self, file: Path) -> bool:
         if self.cache_ttl_minutes == -1:
@@ -84,7 +87,7 @@ class Scraper:
         if len(resp) == 0:
             self.cache_misses += 1
             logger.debug(f"cache not valid or non-existent, populating it for {url=}")
-            web_resp = requests.get(url)
+            web_resp = httpx.get(url)
             if web_resp.status_code == 200 and len(web_resp.content):
                 resp = web_resp.content
                 with open(cached_location, "wb") as req_content:
@@ -102,7 +105,7 @@ class Scraper:
         """
         Returns a list of the HREFs of 'a' tags where the href has a given prefix
         """
-        soup = BeautifulSoup(requests.get(url).content, "lxml")
+        soup = BeautifulSoup(self._cached_get(url), "lxml")
         soups = soup.select("a[href]")
         codes = []
         for soup in soups:
@@ -178,7 +181,7 @@ class Scraper:
         Returns a list of all preprocessed information every course in the list
         """
         preprocessed_courses = self._process_multithreaded(
-            self._preprocess_course, courses
+            self._preprocess_course, courses, progress_bar_units="course"
         )
         # sort by course number, term no, section, and finally class id
         # (this makes it easier to diff for changes and spot errors easier)
@@ -267,24 +270,31 @@ class Scraper:
         return class_objs
 
     def _process_multithreaded(
-        self, fn: Callable[[Any], list[Any]], input_data: list
+        self, fn: Callable[[Any], list[Any]], input_data: list, progress_bar_units: str | None = None
     ) -> list:
         """
         Given a list of input data and a function to process that data with,
          processing the data with a ThreadPoolExecutor.
 
+        If progress_bar_units is specified, a progress bar is shown with those units
+
         Returns a list of results
         """
+        if progress_bar_units is not None:
+            partial_tqdm = partial(tqdm, unit_scale=True, unit=progress_bar_units, total=len(input_data), miniters=1)
+        else:
+            partial_tqdm = lambda x: x
         result = []
         with futures.ThreadPoolExecutor(max_workers=self.max_workers) as exe:
             # map the future to the subject, that way we can tell what subject failed
             fut_to_input = {exe.submit(fn, x): x for x in input_data}
-        for fut in concurrent.futures.as_completed(fut_to_input):
-            try:
-                result.extend(fut.result())
-            except Exception as e:
-                input_obj = fut_to_input[fut]
-                logger.error(f"scraping {input_obj=} failed: {e}")
+
+            for fut in partial_tqdm(concurrent.futures.as_completed(fut_to_input)):
+                try:
+                    result.extend(fut.result())
+                except Exception as e:
+                    input_obj = fut_to_input[fut]
+                    logger.error(f"scraping {input_obj=} failed: {e}")
         return result
 
 
@@ -331,7 +341,8 @@ def main(args):
     logger.setLevel(logging.DEBUG if debug else logging.INFO)
     logger.debug("debug mode is active")
     logger.debug(f"{args=}")
-    logger.info(f"Cache TTL = {timedelta(seconds=args.cache_ttl * 60)}")
+    cache_ttl_text = str(timedelta(seconds=args.cache_ttl * 60)) if args.cache_ttl > 0 else "infinite"
+    logger.info(f"max_workers={args.max_workers} cache_ttl=({timedelta(seconds=args.cache_ttl * 60)})")
     root = Path(args.scrape_root).absolute()
     scraper = Scraper(
         cache_dir=root / ".cache",
