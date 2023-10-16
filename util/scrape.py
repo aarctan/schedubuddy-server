@@ -9,6 +9,7 @@ from concurrent import futures
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import partial
+from multiprocessing import Value
 from pathlib import Path
 from typing import Callable, Any
 from urllib.parse import urlparse
@@ -49,7 +50,6 @@ class Scraper:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_ttl_minutes = cache_ttl_minutes
         self.max_workers = max_workers
-        self.oldest_cache_entry_time = datetime.now()
         self.concurrent_impl = (
             concurrent.futures.ProcessPoolExecutor
             if use_processes
@@ -60,12 +60,8 @@ class Scraper:
 
     def _ttl_expired(self, file: Path) -> bool:
         file_mtime = datetime.fromtimestamp(file.stat().st_mtime)
-        if self.cache_ttl_minutes != -1:
-            delta_minutes = (datetime.now() - file_mtime).total_seconds() / 60
-            if delta_minutes > self.cache_ttl_minutes:
-                self.oldest_cache_entry_time = min(self.oldest_cache_entry_time, file_mtime)
-                return True
-        return False
+        delta_minutes = (datetime.now() - file_mtime).total_seconds() / 60
+        return self.cache_ttl_minutes != -1 and delta_minutes > self.cache_ttl_minutes
 
     def _cached_get(self, url: str, *args, **kwargs) -> bytes:
         """
@@ -374,7 +370,7 @@ def main(args):
         if args.cache_ttl > 0
         else "infinite"
     )
-    logger.info(f"max_workers={args.max_workers} cache_ttl=(cache_ttl_text)")
+    logger.info(f"max_workers={args.max_workers} cache_ttl=({cache_ttl_text})")
     root = Path(args.scrape_root).absolute()
     scraper = Scraper(
         cache_dir=root / ".cache",
@@ -400,9 +396,6 @@ def main(args):
     logger.info(f"retrieving courses took {time.perf_counter() - c_time:.2f}s")
 
     p_time = time.perf_counter()
-    # reset oldest_cache_entry_time
-    # we don't care if eg the faculty pages were old, we DO care if course pages are
-    scraper.oldest_cache_entry_time = datetime.now()
     logger.info(f"processing {len(courses)} courses")
     course_instances = scraper.process_all_course_terms_from_courses(courses)
     logger.info(
