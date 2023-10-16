@@ -8,12 +8,15 @@ import time
 from concurrent import futures
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from functools import partial
+from multiprocessing import Value
 from pathlib import Path
 from typing import Callable, Any
 from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
+from tqdm import tqdm
 
 logging.basicConfig(format="%(asctime)s [%(levelname)s]: %(message)s")
 logger = logging.getLogger(__name__)
@@ -35,7 +38,11 @@ class Scraper:
     ROOT = "https://apps.ualberta.ca/catalogue"
 
     def __init__(
-        self, cache_dir: Path, cache_ttl_minutes: float, max_workers: int
+        self,
+        cache_dir: Path,
+        cache_ttl_minutes: float,
+        max_workers: int,
+        use_processes: bool,
     ) -> None:
         self.cache_hits = 0
         self.cache_misses = 0
@@ -43,15 +50,18 @@ class Scraper:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_ttl_minutes = cache_ttl_minutes
         self.max_workers = max_workers
+        self.concurrent_impl = (
+            concurrent.futures.ProcessPoolExecutor
+            if use_processes
+            else concurrent.futures.ThreadPoolExecutor
+        )
+        self.use_processes = use_processes
+        self.http_client = requests.Session()
 
     def _ttl_expired(self, file: Path) -> bool:
-        if self.cache_ttl_minutes == -1:
-            return False
-
-        delta_minutes = (
-            datetime.now() - datetime.fromtimestamp(file.stat().st_mtime)
-        ).total_seconds() / 60
-        return delta_minutes > self.cache_ttl_minutes
+        file_mtime = datetime.fromtimestamp(file.stat().st_mtime)
+        delta_minutes = (datetime.now() - file_mtime).total_seconds() / 60
+        return self.cache_ttl_minutes != -1 and delta_minutes > self.cache_ttl_minutes
 
     def _cached_get(self, url: str, *args, **kwargs) -> bytes:
         """
@@ -84,7 +94,7 @@ class Scraper:
         if len(resp) == 0:
             self.cache_misses += 1
             logger.debug(f"cache not valid or non-existent, populating it for {url=}")
-            web_resp = requests.get(url)
+            web_resp = self.http_client.get(url)
             if web_resp.status_code == 200 and len(web_resp.content):
                 resp = web_resp.content
                 with open(cached_location, "wb") as req_content:
@@ -102,7 +112,7 @@ class Scraper:
         """
         Returns a list of the HREFs of 'a' tags where the href has a given prefix
         """
-        soup = BeautifulSoup(requests.get(url).content, "lxml")
+        soup = BeautifulSoup(self._cached_get(url), "lxml")
         soups = soup.select("a[href]")
         codes = []
         for soup in soups:
@@ -178,7 +188,7 @@ class Scraper:
         Returns a list of all preprocessed information every course in the list
         """
         preprocessed_courses = self._process_multithreaded(
-            self._preprocess_course, courses
+            self._preprocess_course, courses, progress_bar_units="course"
         )
         # sort by course number, term no, section, and finally class id
         # (this makes it easier to diff for changes and spot errors easier)
@@ -267,24 +277,40 @@ class Scraper:
         return class_objs
 
     def _process_multithreaded(
-        self, fn: Callable[[Any], list[Any]], input_data: list
+        self,
+        fn: Callable[[Any], list[Any]],
+        input_data: list,
+        progress_bar_units: str | None = None,
     ) -> list:
         """
         Given a list of input data and a function to process that data with,
          processing the data with a ThreadPoolExecutor.
 
+        If progress_bar_units is specified, a progress bar is shown with those units
+
         Returns a list of results
         """
+        if progress_bar_units is not None:
+            partial_tqdm = partial(
+                tqdm,
+                unit_scale=True,
+                unit=progress_bar_units,
+                total=len(input_data),
+                smoothing=0.25,
+            )
+        else:
+            partial_tqdm = lambda x: x
         result = []
-        with futures.ThreadPoolExecutor(max_workers=self.max_workers) as exe:
+        with self.concurrent_impl(max_workers=self.max_workers) as exe:
             # map the future to the subject, that way we can tell what subject failed
             fut_to_input = {exe.submit(fn, x): x for x in input_data}
-        for fut in concurrent.futures.as_completed(fut_to_input):
-            try:
-                result.extend(fut.result())
-            except Exception as e:
-                input_obj = fut_to_input[fut]
-                logger.error(f"scraping {input_obj=} failed: {e}")
+
+            for fut in partial_tqdm(concurrent.futures.as_completed(fut_to_input)):
+                try:
+                    result.extend(fut.result())
+                except Exception as e:
+                    input_obj = fut_to_input[fut]
+                    logger.error(f"scraping {input_obj=} failed: {e}")
         return result
 
 
@@ -293,6 +319,7 @@ def cli():
     parser = argparse.ArgumentParser(
         description="scrape", formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
+    parser.add_argument("--debug", action="store_true", help="Enable debugging mode.")
     parser.add_argument(
         "--cache-ttl",
         type=float,
@@ -302,16 +329,23 @@ def cli():
     )
     parser.add_argument(
         "--max-workers",
+        "-j",
         type=int,
         default=3,
         help="Number of maximum workers to use for scraping course pages",
     )
-    parser.add_argument("--debug", action="store_true", help="Enable debugging mode.")
     parser.add_argument(
         "--scrape-root",
         type=str,
         default=Path(__file__).parent.parent / "local",
         help="Base directory to store scraper cache and output",
+    )
+    parser.add_argument(
+        "--use-processes",
+        action="store_true",
+        help="uses processes instead of threads for the parallel compute implementation. "
+        "This is only recommended when you know most things you are going to access will be cached, "
+        "as this disables sharing HTTP sessions. Higher -j recommended in conjunction with this flag",
     )
     args = parser.parse_args()
     main(args)
@@ -331,12 +365,18 @@ def main(args):
     logger.setLevel(logging.DEBUG if debug else logging.INFO)
     logger.debug("debug mode is active")
     logger.debug(f"{args=}")
-    logger.info(f"Cache TTL = {timedelta(seconds=args.cache_ttl * 60)}")
+    cache_ttl_text = (
+        str(timedelta(seconds=args.cache_ttl * 60))
+        if args.cache_ttl > 0
+        else "infinite"
+    )
+    logger.info(f"max_workers={args.max_workers} cache_ttl=({cache_ttl_text})")
     root = Path(args.scrape_root).absolute()
     scraper = Scraper(
         cache_dir=root / ".cache",
         cache_ttl_minutes=args.cache_ttl,
         max_workers=args.max_workers,
+        use_processes=args.use_processes,
     )
     start = time.perf_counter()
 
@@ -362,9 +402,21 @@ def main(args):
         f"processing {len(course_instances)} course terms took {time.perf_counter() - p_time:.2f}s"
     )
 
+    if args.cache_ttl > 0:
+        # too lazy to actually keep track eg min file mtimes across processes
+        # so just approximate here
+        last_updated = (datetime.now() - timedelta(seconds=args.cache_ttl * 60)).timestamp()
+    else:
+        last_updated = 0
+
+    dump = {
+        "last_updated": last_updated,
+        "courses": course_instances
+    }
+    
     if len(course_instances) > 0:
         with open(root / "raw.json", "w") as raw:
-            json.dump(course_instances, raw, sort_keys=True, indent=4)
+            json.dump(dump, raw, sort_keys=True, indent=4)
     else:
         logger.warning("no preprocessed course instances produced, skipping write")
     logger.info(f"completed in {time.perf_counter() - start:.2f}s")
