@@ -341,8 +341,14 @@ def main(args):
     logger.setLevel(logging.DEBUG if debug else logging.INFO)
     logger.debug("debug mode is active")
     logger.debug(f"{args=}")
-    cache_ttl_text = str(timedelta(seconds=args.cache_ttl * 60)) if args.cache_ttl > 0 else "infinite"
-    logger.info(f"max_workers={args.max_workers} cache_ttl=({timedelta(seconds=args.cache_ttl * 60)})")
+    cache_ttl_text = (
+        str(timedelta(seconds=args.cache_ttl * 60))
+        if args.cache_ttl > 0
+        else "infinite"
+    )
+    logger.info(
+        f"max_workers={args.max_workers} cache_ttl=(cache_ttl_text)"
+    )
     root = Path(args.scrape_root).absolute()
     scraper = Scraper(
         cache_dir=root / ".cache",
