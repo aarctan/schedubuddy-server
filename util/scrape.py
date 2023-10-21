@@ -55,7 +55,7 @@ class Scraper:
         self.use_processes = use_processes
         self.http_client = requests.Session()
         self.http_client.headers.update({
-            "User-Agent": "Schedubuddy - github.com/aarctan/schedubuddy-server"
+            "User-Agent": "schedubuddy.com (github.com/aarctan/schedubuddy-server)"
         })
 
     def _ttl_expired(self, file: Path) -> bool:
