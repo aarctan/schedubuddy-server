@@ -9,7 +9,6 @@ from concurrent import futures
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import partial
-from multiprocessing import Value
 from pathlib import Path
 from typing import Callable, Any
 from urllib.parse import urlparse
@@ -51,9 +50,7 @@ class Scraper:
         self.cache_ttl_minutes = cache_ttl_minutes
         self.max_workers = max_workers
         self.concurrent_impl = (
-            concurrent.futures.ProcessPoolExecutor
-            if use_processes
-            else concurrent.futures.ThreadPoolExecutor
+            concurrent.futures.ProcessPoolExecutor if use_processes else concurrent.futures.ThreadPoolExecutor
         )
         self.use_processes = use_processes
         self.http_client = requests.Session()
@@ -74,11 +71,7 @@ class Scraper:
         start = time.perf_counter()
         # basic slugify, this breaks 1:1 mappings between URL:disk cache
         # but for our purposes, this is fine (for example, if 2 URLs differ by a character that's replaced)
-        sanitized_path = (
-            re.sub(r"[^a-z0-9/]", "_", urlparse(url).path, flags=re.IGNORECASE)
-            .lstrip("/")
-            .lower()
-        )
+        sanitized_path = re.sub(r"[^a-z0-9/]", "_", urlparse(url).path, flags=re.IGNORECASE).lstrip("/").lower()
         # we make an assumption here that we'll only be caching HTML
         # if this is violated, it's annoying for manual inspection but won't break anything
         cached_location = (self.cache_dir / sanitized_path).with_suffix(".cache.html")
@@ -126,31 +119,21 @@ class Scraper:
 
     def get_all_faculties(self) -> list[str]:
         """Returns list of faculties, eg ED, BS, ..."""
-        return sorted(
-            self._get_link_codes_with_prefix(f"{self.ROOT}", "/catalogue/faculty")
-        )
+        return sorted(self._get_link_codes_with_prefix(f"{self.ROOT}", "/catalogue/faculty"))
 
     def _get_subjects_from_faculty(self, faculty: str) -> list[str]:
         """Given a faculty, returns all subjects, eg SC -> CMPUT, BIOL, ..."""
-        return sorted(
-            self._get_link_codes_with_prefix(
-                f"{self.ROOT}/faculty/{faculty}", "/catalogue/course"
-            )
-        )
+        return sorted(self._get_link_codes_with_prefix(f"{self.ROOT}/faculty/{faculty}", "/catalogue/course"))
 
     def get_all_subjects_from_faculties(self, faculties: list[str]) -> list[str]:
         """Given multiple faculties, return all subjects associated with any of the faculties"""
-        subjects = self._process_multithreaded(
-            self._get_subjects_from_faculty, faculties
-        )
+        subjects = self._process_multithreaded(self._get_subjects_from_faculty, faculties)
         # some subjects are cross-listed, so we need to eliminate duplicates here
         return sorted(set(subjects))
 
     def _get_courses_from_subject(self, subject: str) -> list[Course]:
         """Given a subject, returns a list of Course objects eg CMPUT -> CMPUT 174, CMPUT 175"""
-        courses_soup = BeautifulSoup(
-            self._cached_get(f"{self.ROOT}/course/{subject}"), "lxml"
-        )
+        courses_soup = BeautifulSoup(self._cached_get(f"{self.ROOT}/course/{subject}"), "lxml")
         # "first" class is important,
         # there are sometimes multiple items for card if the course is changing in the future
         course_titles = courses_soup.select(".course.first h2 > a")
@@ -159,12 +142,8 @@ class Scraper:
         courses = []
         for course_title in course_titles:
             try:
-                course_number_pattern = (
-                    re.escape(subject.replace("_", " ")) + r"\s+(\d{1,4}\w{1,3})"
-                )
-                course_number = re.search(
-                    course_number_pattern, course_title.text
-                ).group(1)
+                course_number_pattern = re.escape(subject.replace("_", " ")) + r"\s+(\d{1,4}\w{1,3})"
+                course_number = re.search(course_number_pattern, course_title.text).group(1)
                 courses.append(Course(subject=subject, number=course_number))
             except AttributeError as e:
                 raise AttributeError(
@@ -181,9 +160,7 @@ class Scraper:
         courses = self._process_multithreaded(self._get_courses_from_subject, subjects)
         return sorted(courses, key=operator.attrgetter("subject", "number"))
 
-    def process_all_course_terms_from_courses(
-        self, courses: list[Course]
-    ) -> list[dict]:
+    def process_all_course_terms_from_courses(self, courses: list[Course]) -> list[dict]:
         """
         Returns a list of all preprocessed information every course in the list
         """
@@ -231,19 +208,15 @@ class Scraper:
                         r"([a-z\d]{1,6})\s*"  # section
                         r"\((\d{5})\)"  # class ID
                     )
-                    section_search = re.search(
-                        tr_section_pattern, tr_section.text, re.IGNORECASE
-                    )
+                    section_search = re.search(tr_section_pattern, tr_section.text, re.IGNORECASE)
                     component, section, class_id = section_search.group(1, 2, 3)
 
                     # Class times
-                    tr_date_time_location_div = tr.find(
-                        "td", {"data-card-title": "Dates + Times + Locations"}
-                    ).find("div", {"class": "row row-cols-1 row-cols-lg-3"})
-
-                    timing_info_divs = tr_date_time_location_div.find_all(
-                        "div", {"class": "col"}
+                    tr_date_time_location_div = tr.find("td", {"data-card-title": "Dates + Times + Locations"}).find(
+                        "div", {"class": "row row-cols-1 row-cols-lg-3"}
                     )
+
+                    timing_info_divs = tr_date_time_location_div.find_all("div", {"class": "col"})
                     class_times = []
                     num_rows = len(timing_info_divs) // 3
                     for j in range(num_rows):
@@ -252,9 +225,7 @@ class Scraper:
                             timing_info_divs[j * 3 + 1],
                             timing_info_divs[j * 3 + 2],
                         )
-                        class_times.append(
-                            (dates.text.strip(), times.text.strip(), loc.text.strip())
-                        )
+                        class_times.append((dates.text.strip(), times.text.strip(), loc.text.strip()))
 
                     instructor = None
                     tr_instructors = tr.find("td", {"data-card-title": "Instructor(s)"})
@@ -316,9 +287,7 @@ class Scraper:
 
 def cli():
     # formatter_class shows defaults when script is run with --help
-    parser = argparse.ArgumentParser(
-        description="scrape", formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
+    parser = argparse.ArgumentParser(description="scrape", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--debug", action="store_true", help="Enable debugging mode.")
     parser.add_argument(
         "--cache-ttl",
@@ -365,12 +334,13 @@ def main(args):
     logger.setLevel(logging.DEBUG if debug else logging.INFO)
     logger.debug("debug mode is active")
     logger.debug(f"{args=}")
-    cache_ttl_text = (
-        str(timedelta(seconds=args.cache_ttl * 60))
-        if args.cache_ttl > 0
-        else "infinite"
-    )
+    cache_ttl_text = str(timedelta(seconds=args.cache_ttl * 60)) if args.cache_ttl > 0 else "infinite"
     logger.info(f"max_workers={args.max_workers} cache_ttl=({cache_ttl_text})")
+    if args.use_processes:
+        logger.warning(
+            "--use-processes=True means no effective share/reuse of network connections, "
+            "leading to decreased scraper performance "
+        )
     root = Path(args.scrape_root).absolute()
     scraper = Scraper(
         cache_dir=root / ".cache",
@@ -398,9 +368,7 @@ def main(args):
     p_time = time.perf_counter()
     logger.info(f"processing {len(courses)} courses")
     course_instances = scraper.process_all_course_terms_from_courses(courses)
-    logger.info(
-        f"processing {len(course_instances)} course terms took {time.perf_counter() - p_time:.2f}s"
-    )
+    logger.info(f"processing {len(course_instances)} course terms took {time.perf_counter() - p_time:.2f}s")
 
     if len(course_instances) > 0:
         with open(root / "raw.json", "w") as raw:
