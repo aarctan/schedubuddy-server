@@ -90,6 +90,10 @@ def api_draw_sched():
     imgpath = draw_schedule.draw_schedule(sched)
     return send_file(imgpath, download_name='schedule.png', mimetype='image/png')
 
+@app.route("/api/v1/last-updated", methods=['GET'])
+def last_updated():
+    return {"lastUpdated": qe.get_last_updated()}
+
 Compress(app)
 if __name__ == "__main__":
     app.run()

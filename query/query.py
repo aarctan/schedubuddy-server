@@ -60,7 +60,12 @@ class QueryExecutor:
         self._term_class_cache = {}
         for term_obj in self.get_terms()["objects"]:
             self._term_class_cache[str(term_obj["term"])] = {}
-    
+            
+    def get_last_updated(self) -> float:
+        res = self._cursor.execute("SELECT lastUpdated FROM meta").fetchone()
+        return res[0]
+
+
     def get_terms(self):
         term_query = f"SELECT * FROM uOfATerm"
         self._cursor.execute(term_query)

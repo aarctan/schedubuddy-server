@@ -402,9 +402,21 @@ def main(args):
         f"processing {len(course_instances)} course terms took {time.perf_counter() - p_time:.2f}s"
     )
 
+    if args.cache_ttl > 0:
+        # too lazy to actually keep track eg min file mtimes across processes
+        # so just approximate here
+        last_updated = (datetime.now() - timedelta(seconds=args.cache_ttl * 60)).timestamp()
+    else:
+        last_updated = 0
+
+    dump = {
+        "last_updated": last_updated,
+        "courses": course_instances
+    }
+    
     if len(course_instances) > 0:
         with open(root / "raw.json", "w") as raw:
-            json.dump(course_instances, raw, sort_keys=True, indent=4)
+            json.dump(dump, raw, sort_keys=True, indent=4)
     else:
         logger.warning("no preprocessed course instances produced, skipping write")
     logger.info(f"completed in {time.perf_counter() - start:.2f}s")
